@@ -1,0 +1,156 @@
+backend/
+│
+├── src/
+│   ├── config/
+│   │   ├── app.config.js
+│   │   ├── db.config.js
+│   │   ├── cache.config.js
+│   │   ├── logger.config.js
+│   │   ├── security.config.js
+│   │   └── index.js
+│   │
+│   ├── loaders/
+│   │   ├── express.loader.js
+│   │   ├── db.loader.js
+│   │   ├── routes.loader.js
+│   │   ├── jobs.loader.js
+│   │   └── index.js
+│   │
+│   ├── middleware/
+│   │   ├── auth.middleware.js
+│   │   ├── tenant.middleware.js
+│   │   ├── error.middleware.js
+│   │   ├── rateLimit.middleware.js
+│   │   ├── validate.middleware.js
+│   │   └── permission.middleware.js
+│   │
+│   ├── utils/
+│   │   ├── apiResponse.js
+│   │   ├── date.utils.js
+│   │   ├── file.utils.js
+│   │   ├── string.utils.js
+│   │   ├── prefix.utils.js
+│   │   └── crypto.utils.js
+│   │
+│   ├── models/
+│   │   ├── systemAdmin.model.js
+│   │   ├── crm.model.js
+│   │   ├── product.model.js
+│   │   ├── project.model.js
+│   │   ├── inventory.model.js
+│   │   ├── hr.model.js
+│   │   ├── finance.model.js
+│   │   ├── procurement.model.js
+│   │   ├── report.model.js
+│   │   └── notification.model.js
+│   │
+│   ├── modules/
+│   │   ├── systemAdmin/
+│   │   │   ├── systemAdmin.controller.js
+│   │   │   ├── systemAdmin.service.js
+│   │   │   ├── systemAdmin.model.js
+│   │   │   ├── systemAdmin.routes.js
+│   │   │   ├── systemAdmin.validation.js
+│   │   │   └── systemAdmin.test.js
+│   │   ├── crm/
+│   │   │   ├── crm.controller.js
+│   │   │   ├── crm.service.js
+│   │   │   ├── crm.model.js
+│   │   │   ├── crm.routes.js
+│   │   │   ├── crm.validation.js
+│   │   │   └── crm.test.js
+│   │   ├── product/
+│   │   │   ├── product.controller.js
+│   │   │   ├── product.service.js
+│   │   │   ├── product.model.js
+│   │   │   ├── product.routes.js
+│   │   │   ├── product.validation.js
+│   │   │   └── product.test.js
+│   │   ├── project/
+│   │   │   ├── project.controller.js
+│   │   │   ├── project.service.js
+│   │   │   ├── project.model.js
+│   │   │   ├── project.routes.js
+│   │   │   ├── project.validation.js
+│   │   │   └── project.test.js
+│   │   ├── inventory/
+│   │   │   ├── inventory.controller.js
+│   │   │   ├── inventory.service.js
+│   │   │   ├── inventory.model.js
+│   │   │   ├── inventory.routes.js
+│   │   │   ├── inventory.validation.js
+│   │   │   └── inventory.test.js
+│   │   ├── hr/
+│   │   │   ├── hr.controller.js
+│   │   │   ├── hr.service.js
+│   │   │   ├── hr.model.js
+│   │   │   ├── hr.routes.js
+│   │   │   ├── hr.validation.js
+│   │   │   └── hr.test.js
+│   │   ├── finance/
+│   │   │   ├── finance.controller.js
+│   │   │   ├── finance.service.js
+│   │   │   ├── finance.model.js
+│   │   │   ├── finance.routes.js
+│   │   │   ├── finance.validation.js
+│   │   │   └── finance.test.js
+│   │   ├── procurement/
+│   │   │   ├── procurement.controller.js
+│   │   │   ├── procurement.service.js
+│   │   │   ├── procurement.model.js
+│   │   │   ├── procurement.routes.js
+│   │   │   ├── procurement.validation.js
+│   │   │   └── procurement.test.js
+│   │   ├── reports/
+│   │   │   ├── report.controller.js
+│   │   │   ├── report.service.js
+│   │   │   ├── report.model.js
+│   │   │   ├── report.routes.js
+│   │   │   ├── report.validation.js
+│   │   │   └── report.test.js
+│   │   └── notifications/
+│   │       ├── notification.controller.js
+│   │       ├── notification.service.js
+│   │       ├── notification.model.js
+│   │       ├── notification.routes.js
+│   │       ├── notification.validation.js
+│   │       └── notification.test.js
+│   │
+│   ├── routes/
+│   │   ├── index.js
+│   │   ├── public.routes.js
+│   │   └── tenant.routes.js
+│   │
+│   ├── jobs/
+│   │   ├── billing.job.js
+│   │   ├── backup.job.js
+│   │   └── notification.job.js
+│   │
+│   ├── tests/
+│   │   ├── unit/
+│   │   ├── integration/
+│   │   └── e2e/
+│   │
+│   ├── app.js
+│   └── server.js
+│
+├── scripts/
+│   ├── migrate.js
+│   ├── seed.js
+│   └── tenantCreate.js
+│
+├── logs/
+│   ├── error.log
+│   ├── combined.log
+│   └── audit.log
+│
+├── .env
+├── package.json
+└── README.md
+
+
+
+
+
+
+

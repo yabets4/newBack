@@ -1,0 +1,47 @@
+import { DepartmentModel } from './department.model.js';
+
+export const DepartmentService = {
+  async create(companyId, payload) {
+    // ensure department_id provided or generate
+    const departmentId = payload.department_id || `DEPT-${Date.now().toString().slice(-6)}`;
+    return DepartmentModel.create(companyId, { ...payload, department_id: departmentId });
+  },
+
+  async list(companyId) {
+    return DepartmentModel.findAll(companyId);
+  },
+
+  async get(companyId, departmentId) {
+    return DepartmentModel.findById(companyId, departmentId);
+  },
+
+  async update(companyId, departmentId, payload) {
+    return DepartmentModel.update(companyId, departmentId, payload);
+  },
+
+  async remove(companyId, departmentId) {
+    return DepartmentModel.remove(companyId, departmentId);
+  },
+
+  // Jobs
+  async createJob(companyId, departmentId, payload) {
+    const jobId = payload.job_id || `JOB-${Date.now().toString().slice(-6)}`;
+    return DepartmentModel.createJob(companyId, departmentId, { ...payload, job_id: jobId });
+  },
+
+  async listJobs(companyId, departmentId) {
+    return DepartmentModel.findJobs(companyId, departmentId);
+  },
+
+  async getJob(companyId, departmentId, jobId) {
+    return DepartmentModel.findJobById(companyId, departmentId, jobId);
+  },
+
+  async updateJob(companyId, departmentId, jobId, payload) {
+    return DepartmentModel.updateJob(companyId, departmentId, jobId, payload);
+  },
+
+  async removeJob(companyId, departmentId, jobId) {
+    return DepartmentModel.removeJob(companyId, departmentId, jobId);
+  }
+};

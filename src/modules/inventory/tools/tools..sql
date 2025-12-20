@@ -1,0 +1,22 @@
+CREATE TABLE IF NOT EXISTS tools_machinery (
+    id SERIAL PRIMARY KEY,
+    company_id VARCHAR(20) NOT NULL,
+    asset_id VARCHAR(50) NOT NULL,
+    name VARCHAR(100) NOT NULL,
+    type VARCHAR(50) NOT NULL,
+    serial_number VARCHAR(100),
+    manufacturer VARCHAR(100),
+    model_number VARCHAR(100),
+    purchase_date DATE,
+    cost NUMERIC(15, 2) NOT NULL DEFAULT 0,
+    status VARCHAR(50) NOT NULL DEFAULT 'Operational',
+    location VARCHAR(100) NOT NULL,
+    last_maintenance_date DATE,
+    next_maintenance_date DATE,
+    assigned_to VARCHAR(100),
+    notes TEXT,
+    image_url TEXT,
+    created_at TIMESTAMP DEFAULT NOW(),
+    updated_at TIMESTAMP DEFAULT NOW(),
+    FOREIGN KEY (company_id) REFERENCES companies(company_id) ON DELETE CASCADE
+);
