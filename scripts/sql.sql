@@ -4,7 +4,7 @@ CREATE TABLE IF NOT EXISTS companies (
     company_name VARCHAR(255) NOT NULL,
     created_at TIMESTAMP DEFAULT NOW(),
     token_secret VARCHAR(255),
-    next_user_number INT DEFAULT 1,
+    next_user_number INT DEFAULT 0,
     next_customer_number INT DEFAULT 0,
     next_lead_number INT DEFAULT 0,   -- used by backend to generate LEAD-XX
     next_asset_number INT DEFAULT 0,   -- used by backend to generate LEAD-XX
@@ -15,11 +15,12 @@ CREATE TABLE IF NOT EXISTS companies (
     next_order_number INT DEFAULT 0,
     next_employee_number INT DEFAULT 0,
     next_product_number INT DEFAULT 0,
-    next_design_number INT DEFAULT 0,
     next_ap_invoice_number INT DEFAULT 0,
     next_ar_invoice_number INT NOT NULL DEFAULT 1,
     next_account_number INT NOT NULL DEFAULT 1,
-    next_journal_number INT NOT NULL DEFAULT 1
+    next_journal_number INT NOT NULL DEFAULT 1,
+    next_budget_number INT NOT NULL DEFAULT 0,
+    next_account_number INT NOT NULL DEFAULT 0,
 );
 
 -- Sequence for company numbers
@@ -240,12 +241,13 @@ CREATE INDEX IF NOT EXISTS idx_rbac_company_user ON rbac(company_id, user_id);
 CREATE TABLE IF NOT EXISTS customers (
     id BIGSERIAL PRIMARY KEY,
     company_id VARCHAR(20) NOT NULL REFERENCES companies(company_id) ON DELETE CASCADE,
-    customer_id VARCHAR(20) NOT NULL,  -- CUS-XX
+    customer_id VARCHAR(20) NOT NULL,  
+    password_hash VARCHAR(255) NOT NULL DEFAULT 0000,
+    status VARCHAR(20) NOT NULL DEFAULT 'Active' CHECK (status IN ('Active','Inactive')),
     created_at TIMESTAMP DEFAULT NOW(),
-    UNIQUE (company_id, customer_id)  -- needed for composite FK
+    UNIQUE (company_id, customer_id)  
 );
 
--- Customer Profiles
 CREATE TABLE IF NOT EXISTS customer_profiles (
     id BIGSERIAL PRIMARY KEY,
     company_id VARCHAR(20) NOT NULL,
@@ -265,6 +267,8 @@ CREATE TABLE IF NOT EXISTS customer_profiles (
     updated_at TIMESTAMP DEFAULT NOW(),
     gender VARCHAR(20),
     birthday DATE,
+    latitude DECIMAL(10, 8),
+    longitude DECIMAL(11, 8),
     FOREIGN KEY (company_id, customer_id)
       REFERENCES customers(company_id, customer_id)
       ON DELETE CASCADE
@@ -390,8 +394,7 @@ CREATE TABLE IF NOT EXISTS quote_attachments (
       ON DELETE CASCADE
 );
 
--- Orders table
-CREATE TABLE IF NOT EXISTS orders (
+CREATE TABLE orders (
     id BIGSERIAL PRIMARY KEY,
     company_id VARCHAR(20) NOT NULL REFERENCES companies(company_id) ON DELETE CASCADE,
     order_id VARCHAR(20) NOT NULL, -- ORD-XX
@@ -409,7 +412,7 @@ CREATE TABLE IF NOT EXISTS orders (
     FOREIGN KEY (company_id, quote_id) REFERENCES quotes(company_id, quote_id) ON DELETE CASCADE
 );
 
-CREATE TABLE IF NOT EXISTS order_items (
+CREATE TABLE order_items (
     id BIGSERIAL PRIMARY KEY,
     company_id VARCHAR(20) NOT NULL,
     order_id VARCHAR(20) NOT NULL,
@@ -423,13 +426,6 @@ CREATE TABLE IF NOT EXISTS order_items (
     FOREIGN KEY (company_id, order_id) REFERENCES orders(company_id, order_id) ON DELETE CASCADE,
     FOREIGN KEY (company_id, quote_id) REFERENCES quotes(company_id, quote_id) ON DELETE CASCADE
 );
-
-
-
-
-
-
-
 
 
 --HR Tables
@@ -850,6 +846,8 @@ CREATE TABLE IF NOT EXISTS suppliers (
     status VARCHAR(50),
     payment_terms VARCHAR(100),
     contact_info TEXT,
+    latitude DOUBLE PRECISION,
+    longitude DOUBLE PRECISION,
     notes TEXT,
     PRIMARY KEY (company_id, supplier_id)
 );

@@ -1,6 +1,7 @@
 import JournalModel from './journal.model.js';
 import MappingService from './mapping.service.js';
 import JournalEngine from './journal.engine.js';
+import FinancialPeriodService from '../financial_period/financial_period.service.js';
 
 export const JournalService = {
   async createJournal(companyId, payload) {
@@ -15,6 +16,11 @@ export const JournalService = {
 
     if (!Array.isArray(payload.lines) || payload.lines.length === 0) {
       throw new Error('Journal must have at least one line');
+    }
+
+    // Validate Financial Period
+    if (payload.journal_date) {
+      await FinancialPeriodService.validateDate(companyId, payload.journal_date);
     }
 
     // Validate balancing
@@ -51,6 +57,11 @@ export const JournalService = {
       if (Math.abs(totalDebit - totalCredit) > 0.0001) {
         throw new Error('Journal lines must balance (total debit must equal total credit)');
       }
+    }
+
+    // Validate Financial Period
+    if (payload.journal_date) {
+      await FinancialPeriodService.validateDate(companyId, payload.journal_date);
     }
 
     try {

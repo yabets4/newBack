@@ -82,10 +82,7 @@ export const RawMaterialsModel = {
   const UmosResult = await pool.query(
     `
     SELECT  * FROM units_of_measure WHERE company_id=$1 ORDER BY name ASC`, [companyId]);
-  
-  
-
-  // Return everything together, same format
+    
   return {
     locations: locationsResult.rows,
     categories: categoriesResult.rows,

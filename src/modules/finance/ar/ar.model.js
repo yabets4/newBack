@@ -1,10 +1,11 @@
 import pool from '../../../loaders/db.loader.js';
 
 export const ArModel = {
-  async insertInvoice(companyId, data) {
-    const client = await pool.connect();
+  async insertInvoice(companyId, data, externalClient = null) {
+    const client = externalClient || await pool.connect();
+    const shouldRelease = !externalClient;
     try {
-      await client.query('BEGIN');
+      if (shouldRelease) await client.query('BEGIN');
 
       // Generate invoice id
       const nextRes = await client.query(
@@ -40,13 +41,14 @@ export const ArModel = {
         }
       }
 
-      await client.query('COMMIT');
+
+      if (shouldRelease) await client.query('COMMIT');
       return await this.findById(companyId, invoice_id);
     } catch (err) {
-      await client.query('ROLLBACK');
+      if (shouldRelease) await client.query('ROLLBACK');
       throw err;
     } finally {
-      client.release();
+      if (shouldRelease) client.release();
     }
   },
 

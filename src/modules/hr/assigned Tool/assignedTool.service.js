@@ -1,27 +1,29 @@
 import AssignedToolModel from './assignedTool.model.js';
 
-export default class AssignedToolService {
-  constructor() {
-    this.model = new AssignedToolModel();
-  }
+const AssignedToolService = {
+  async create(companyId, payload) {
+    // normalize payload if needed
+    const rec = await AssignedToolModel.create(companyId, payload || {});
+    return rec;
+  },
 
-  async getAllTools(prefix, options) {
-    return await this.model.findAll(prefix, options);
-  }
+  async update(companyId, id, payload) {
+    const rec = await AssignedToolModel.update(companyId, id, payload || {});
+    return rec;
+  },
 
-  async getToolById(prefix, id) {
-    return await this.model.findById(prefix, id);
-  }
+  async delete(companyId, id) {
+    const deleted = await AssignedToolModel.delete(companyId, id);
+    return deleted;
+  },
 
-  async createTool(prefix, data) {
-    return await this.model.create(prefix, data);
-  }
+  async getById(companyId, id) {
+    return AssignedToolModel.getById(companyId, id);
+  },
 
-  async updateTool(prefix, id, data) {
-    return await this.model.update(prefix, id, data);
+  async list(companyId, filters) {
+    return AssignedToolModel.list(companyId, filters || {});
   }
+};
 
-  async deleteTool(prefix, id) {
-    return await this.model.delete(prefix, id);
-  }
-}
+export default AssignedToolService;

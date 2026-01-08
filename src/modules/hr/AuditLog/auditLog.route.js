@@ -1,15 +1,16 @@
-import { Router } from 'express';
-import auth from '../../../middleware/auth.middleware.js';
+import permission from '../../../middleware/permission.middleware.js';
 import pool from '../../../loaders/db.loader.js';
+import { Router } from 'express';
 
 const r = Router();
 
 // Protect these routes
-r.use(auth(true), );
+// r.use(auth(true), );
+const canRead = permission(['tenant.read.all', 'audit.read.all']); // High clearance
 
 // GET / - list audit logs with optional filters and pagination
 // Query params: user_id, endpoint, record_id, action, from, to, limit, offset
-r.get('/', async (req, res, next) => {
+r.get('/', canRead, async (req, res, next) => {
 	try {
 		const q = [];
 		const params = [];
@@ -64,7 +65,7 @@ r.get('/', async (req, res, next) => {
 });
 
 // GET /:id - get a single audit entry by audit_id
-r.get('/:id', async (req, res, next) => {
+r.get('/:id', canRead, async (req, res, next) => {
 	try {
 		const id = req.params.id;
 		const companyId = req.auth && req.auth.companyID ? req.auth.companyID : null;

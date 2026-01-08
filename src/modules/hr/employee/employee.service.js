@@ -47,22 +47,22 @@ export default class EmployeeService {
   }
 
   // ✅ Create new employee
-async createEmployee(companyId, data) {
-  try {
-    // Normalize employee_type
-    if (data.employee_type) {
-      data.employee_type = data.employee_type
-        .toLowerCase()
-        .replace(/\s+/g, '_')  // spaces → underscores
-        .replace(/-/g, '_');   // hyphens → underscores
-    }
+  async createEmployee(companyId, data) {
+    try {
+      // Normalize employee_type
+      if (data.employee_type) {
+        data.employee_type = data.employee_type
+          .toLowerCase()
+          .replace(/\s+/g, '_')  // spaces → underscores
+          .replace(/-/g, '_');   // hyphens → underscores
+      }
 
-    return await EmployeeModel.create(companyId, data);
-  } catch (err) {
-    console.error('Service error: createEmployee', err);
-    throw new Error('Could not create employee');
+      return await EmployeeModel.create(companyId, data);
+    } catch (err) {
+      console.error('Service error: createEmployee', err);
+      throw new Error('Could not create employee');
+    }
   }
-}
 
 
   // ✅ Update employee (static + related tables)
@@ -101,6 +101,19 @@ async createEmployee(companyId, data) {
     } catch (err) {
       console.error('Service error: setEmployeeStatus', err);
       throw new Error('Could not update employee status');
+    }
+  }
+
+  async getInfo(companyId) {
+    return await EmployeeModel.getInfo(companyId);
+  }
+
+  async promoteEmployee(companyId, employeeId) {
+    try {
+      return await EmployeeModel.promoteEmployee(companyId, employeeId);
+    } catch (err) {
+      console.error('Service error: promoteEmployee', err);
+      throw err;
     }
   }
 }

@@ -1,5 +1,6 @@
 import QuoteService from './quote.service.js';
 import { ok, badRequest, notFound } from '../../../utils/apiResponse.js';
+import { getCompanyNameById } from '../../../middleware/services/company.service.js';
 
 export async function getAllLeads(req, res) {
   try {
@@ -17,10 +18,10 @@ export async function getAllLeads(req, res) {
 // GET all quotes
 export async function getQuotes(req, res) {
   try {
-    const { companyID } = req.auth; 
+    const { companyID } = req.auth;
     const quotes = await QuoteService.list(companyID);
     console.log(quotes);
-    
+
     return ok(res, quotes);
   } catch (error) {
     console.log(error);
@@ -31,7 +32,7 @@ export async function getQuotes(req, res) {
 // GET single quote
 export async function getQuote(req, res) {
   try {
-    const { companyID } = req.auth; 
+    const { companyID } = req.auth;
     const { quoteId } = req.params;
     const quote = await QuoteService.get(companyID, quoteId);
     console.log(quote);
@@ -46,7 +47,7 @@ export async function getQuote(req, res) {
 // POST create quote
 export async function createQuote(req, res) {
   try {
-    const { companyID } = req.auth; 
+    const { companyID } = req.auth;
     // If multipart FormData sent `items` as a JSON string, parse it into an array
     if (req.body.items && typeof req.body.items === 'string') {
       try {
@@ -65,10 +66,14 @@ export async function createQuote(req, res) {
     console.log('createQuote - incoming req.files:', (req.files || []).map(f => ({ fieldname: f.fieldname, originalname: f.originalname })));
     console.log('createQuote - incoming req.body.items (preview):', Array.isArray(req.body.items) ? req.body.items.map((it, i) => ({ idx: i, attachments: (it.attachments || []).length })) : req.body.items);
 
+    // Fetch company name to match Multer's folder structure
+    const companyName = await getCompanyNameById(companyID) || 'default';
+    const safeName = companyName.replace(/[^a-zA-Z0-9-_]/g, '_');
+
     // Only consider files uploaded under the `attachments` field for quote-level attachments
     const quoteFiles = (req.files || []).filter(f => f.fieldname === 'attachments');
     const attachments = quoteFiles.map((f, idx) => ({
-      file_url: `/uploads/${req.tenantPrefix || "default"}/projects/${f.filename}`,
+      file_url: `/uploads/${safeName}/projects/${f.filename}`,
       description: (attachmentDescriptions && attachmentDescriptions[idx]) ? attachmentDescriptions[idx] : f.originalname,
     }));
 
@@ -89,7 +94,7 @@ export async function createQuote(req, res) {
         if (descMatch || threeDMatch) {
           const idx = Number((descMatch || threeDMatch)[1]);
           const att = {
-            file_url: `/uploads/${req.tenantPrefix || "default"}/projects/${f.filename}`,
+            file_url: `/uploads/${safeName}/projects/${f.filename}`,
             file_type: f.mimetype,
             description: req.body[`description-attachment-desc-${idx}`] || f.originalname || ''
           };
@@ -117,7 +122,7 @@ export async function createQuote(req, res) {
           const fileObj = matches.shift();
           if (!fileObj) continue;
           const att = {
-            file_url: `/uploads/${req.tenantPrefix || "default"}/projects/${fileObj.filename}`,
+            file_url: `/uploads/${safeName}/projects/${fileObj.filename}`,
             file_type: fileObj.mimetype,
             description: meta.description || ''
           };
@@ -153,7 +158,7 @@ export async function createQuote(req, res) {
 // PUT update quote
 export async function updateQuote(req, res) {
   try {
-    const { companyID } = req.auth; 
+    const { companyID } = req.auth;
     const { quoteId } = req.params;
     // If multipart FormData sent `items` as a JSON string, parse it into an array
     if (req.body.items && typeof req.body.items === 'string') {
@@ -185,7 +190,7 @@ export async function updateQuote(req, res) {
     // Only create quote-level attachments from files uploaded under `attachments`
     const quoteFilesForUpdate = (req.files || []).filter(f => f.fieldname === 'attachments');
     const newAttachments = quoteFilesForUpdate.map((f, idx) => ({
-      file_url: `/uploads/${req.tenantPrefix || "default"}/projects/${f.filename}`,
+      file_url: `/uploads/${safeName}/leads/${f.filename}`,
       description: (attachmentDescriptions && attachmentDescriptions[idx]) ? attachmentDescriptions[idx] : f.originalname,
     }));
 
@@ -210,7 +215,7 @@ export async function updateQuote(req, res) {
           const fileObj = matches.shift();
           if (!fileObj) continue;
           const att = {
-            file_url: `/uploads/${req.tenantPrefix || "default"}/projects/${fileObj.filename}`,
+            file_url: `/uploads/${safeName}/projects/${fileObj.filename}`,
             file_type: fileObj.mimetype,
             description: meta.description || ''
           };
@@ -248,7 +253,7 @@ export async function updateQuote(req, res) {
     return ok(res, updated);
   } catch (error) {
     console.log(error);
-    
+
     return badRequest(res, error.message);
   }
 }
@@ -256,7 +261,7 @@ export async function updateQuote(req, res) {
 // DELETE quote
 export async function deleteQuote(req, res) {
   try {
-    const { companyID } = req.auth; 
+    const { companyID } = req.auth;
     const { quoteId } = req.params;
     await QuoteService.remove(companyID, quoteId);
     return ok(res, "Quote deleted");
@@ -268,7 +273,7 @@ export async function deleteQuote(req, res) {
 // POST add attachment
 export async function addQuoteAttachment(req, res) {
   try {
-    const { companyID } = req.auth; 
+    const { companyID } = req.auth;
     const { quoteId } = req.params;
     // Build attachments from uploaded files (and optional descriptions)
     let attachmentDescriptions = req.body.attachment_descriptions || req.body['attachment_descriptions[]'] || [];
@@ -276,7 +281,7 @@ export async function addQuoteAttachment(req, res) {
 
     const quoteFiles = (req.files || []).filter(f => f.fieldname === 'attachments');
     const attachments = quoteFiles.map((f, idx) => ({
-      file_url: `/uploads/${req.tenantPrefix || "default"}/projects/${f.filename}`,
+      file_url: `/uploads/${safeName}/projects/${f.filename}`,
       description: (attachmentDescriptions && attachmentDescriptions[idx]) ? attachmentDescriptions[idx] : f.originalname,
     }));
 
@@ -293,7 +298,7 @@ export async function addQuoteAttachment(req, res) {
 // DELETE attachment
 export async function deleteQuoteAttachment(req, res) {
   try {
-    const { companyID } = req.auth; 
+    const { companyID } = req.auth;
     const { quoteId, attachmentId } = req.params;
     await QuoteService.removeAttachment(companyID, quoteId, attachmentId);
     return ok(res, "Attachment removed");
@@ -305,7 +310,7 @@ export async function deleteQuoteAttachment(req, res) {
 // POST add item
 export async function addQuoteItem(req, res) {
   try {
-    const { companyID } = req.auth; 
+    const { companyID } = req.auth;
     const { quoteId } = req.params;
     const item = await QuoteService.addItem(companyID, quoteId, req.body);
     return ok(res, item);
@@ -317,14 +322,14 @@ export async function addQuoteItem(req, res) {
 // POST add item attachment
 export async function addQuoteItemAttachment(req, res) {
   try {
-    const { companyID } = req.auth; 
+    const { companyID } = req.auth;
     const { quoteItemId } = req.params;
     let attachmentDescriptions = req.body.attachment_descriptions || req.body['attachment_descriptions[]'] || [];
     if (typeof attachmentDescriptions === 'string') attachmentDescriptions = [attachmentDescriptions];
 
     const itemFiles = (req.files || []).filter(f => f.fieldname === 'attachments' || f.fieldname === 'item_files');
     const attachments = itemFiles.map((f, idx) => ({
-      file_url: `/uploads/${req.tenantPrefix || "default"}/projects/${f.filename}`,
+      file_url: `/uploads/${safeName}/projects/${f.filename}`,
       description: (attachmentDescriptions && attachmentDescriptions[idx]) ? attachmentDescriptions[idx] : f.originalname,
     }));
 
@@ -340,7 +345,7 @@ export async function addQuoteItemAttachment(req, res) {
 // DELETE item attachment
 export async function deleteQuoteItemAttachment(req, res) {
   try {
-    const { companyID } = req.auth; 
+    const { companyID } = req.auth;
     const { attachmentId } = req.params;
     await QuoteService.removeItemAttachment(companyID, attachmentId);
     return ok(res, "Item attachment removed");

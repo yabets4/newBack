@@ -1,4 +1,8 @@
 import pool from "../../../loaders/db.loader.js";
+import { DepartmentModel } from "../departments/department.model.js"
+import LocationsModel from "../../crm/locations/locations.model.js"
+import UserModel from "../users/user.model.js";
+
 
 export const EmployeeModel = {
   async create(companyId, data) {
@@ -53,8 +57,8 @@ export const EmployeeModel = {
         `INSERT INTO employee_employment_details (
           company_id, employee_id, work_location, department, job_title,
           hire_date, employee_type, base_salary, pay_frequency,
-          bank_name, bank_account_number
-        ) VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9,$10,$11) RETURNING id`,
+          bank_name, bank_account_number, department_id, job_id, job_level_id, job_level_name
+        ) VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9,$10,$11,$12,$13,$14,$15) RETURNING id`,
         [
           companyId,
           employee_id,
@@ -66,7 +70,11 @@ export const EmployeeModel = {
           data.base_salary || null,
           data.pay_frequency || null,
           data.bank_name || null,
-          data.bank_account_number || null
+          data.bank_account_number || null,
+          data.department_id || null,
+          data.job_id || null,
+          data.job_level_id || null,
+          data.job_level_name || null
         ]
       );
       const employmentDetailId = detailRows[0].id;
@@ -157,7 +165,24 @@ export const EmployeeModel = {
         }
       }
 
+      // 7. Create user account if requested
+      if (data.create_user_account === true || data.create_user_account === 'true') {
+        try {
+          await UserModel.create(companyId, {
+            name: data.full_name,
+            email: data.email,
+            phone: data.phone_number,
+            password: '0000',
+            role: 'staff'
+          });
+        } catch (e) {
+          console.error('Failed to provision user during employee creation:', e);
+          throw new Error('Employee created but failed to provision user account.');
+        }
+      }
+
       await client.query('COMMIT');
+
 
       return { employee_id, employment_detail_id: employmentDetailId };
     } catch (err) {
@@ -169,114 +194,147 @@ export const EmployeeModel = {
     }
   },
 
-async findAll(companyId) {
+  async findAll(companyId) {
     const { rows } = await pool.query(
-      `SELECT * FROM employees WHERE company_id = $1 ORDER BY created_at DESC`,
+      `SELECT e.*, 
+              eed.department, 
+              eed.job_title, 
+              eed.job_level_id, 
+              eed.job_level_name 
+       FROM employees e
+       LEFT JOIN LATERAL (
+         SELECT department, job_title, job_level_id, job_level_name
+         FROM employee_employment_details
+         WHERE employee_id = e.employee_id AND company_id = e.company_id
+         ORDER BY created_at DESC
+         LIMIT 1
+       ) eed ON true
+       WHERE e.company_id = $1 
+       ORDER BY e.created_at DESC`,
       [companyId]
     );
     return rows;
   },
 
   // ✅ GET ONE EMPLOYEE (with related details)
-async findById(companyId, employeeId) {
+  async findById(companyId, employeeId) {
 
-  // 1. Base employee
-  const { rows: empRows } = await pool.query(
-    `SELECT * FROM employees WHERE company_id = $1 AND employee_id = $2`,
-    [companyId, employeeId]
-  );
-  if (empRows.length === 0) return null;
-  const employee = empRows[0];
+    // 1. Base employee
+    const { rows: empRows } = await pool.query(
+      `SELECT * FROM employees WHERE company_id = $1 AND employee_id = $2`,
+      [companyId, employeeId]
+    );
+    if (empRows.length === 0) return null;
+    const employee = empRows[0];
 
-  // 2. Emergency contacts
-  const { rows: contacts } = await pool.query(
-    `SELECT * FROM employee_emergency_contacts WHERE company_id = $1 AND employee_id = $2`,
-    [companyId, employeeId]
-  );
-  employee.emergency_contacts = contacts;
+    // Check if a user account already exists for this employee's email
+    if (employee.email) {
+      const { rows: userRows } = await pool.query(
+        `SELECT u.user_id FROM users u 
+         JOIN user_profiles p ON p.company_id = u.company_id AND p.user_id = u.user_id
+         WHERE u.company_id = $1 AND p.email = $2 LIMIT 1`,
+        [companyId, employee.email]
+      );
+      employee.has_user_account = userRows.length > 0;
+    } else {
+      employee.has_user_account = false;
+    }
 
-  // 3. Skills & Certifications
-  const { rows: skillsCerts } = await pool.query(
-    `SELECT skill_name, certification_name, issued_by, expiry_date, attachment
+    // 2. Emergency contacts
+    const { rows: contacts } = await pool.query(
+      `SELECT * FROM employee_emergency_contacts WHERE company_id = $1 AND employee_id = $2`,
+      [companyId, employeeId]
+    );
+    employee.emergency_contacts = contacts;
+
+    // 3. Skills & Certifications
+    const { rows: skillsCerts } = await pool.query(
+      `SELECT skill_name, certification_name, issued_by, expiry_date, attachment
      FROM employee_skills_certifications
      WHERE company_id = $1 AND employee_id = $2`,
-    [companyId, employeeId]
-  );
-  employee.skills = skillsCerts.filter(sc => sc.skill_name).map(sc => sc.skill_name);
-  employee.certifications = skillsCerts.filter(sc => sc.certification_name);
+      [companyId, employeeId]
+    );
+    employee.skills = skillsCerts.filter(sc => sc.skill_name).map(sc => sc.skill_name);
+    employee.certifications = skillsCerts.filter(sc => sc.certification_name);
 
-  // 4. Employment details — pull all fields from employee_employment_details
-  const { rows: employmentRows } = await pool.query(
-    `SELECT work_location, department, job_title, hire_date, employee_type, contract_type, reports_to, deputy_manager,
-            base_salary, pay_frequency, bank_name, bank_account_number
+    // 4. Employment details — pull all fields from employee_employment_details
+    const { rows: employmentRows } = await pool.query(
+      `SELECT work_location, department, job_title, hire_date, employee_type, contract_type, reports_to, deputy_manager,
+            base_salary, pay_frequency, bank_name, bank_account_number,
+            department_id, job_id, job_level_id, job_level_name
      FROM employee_employment_details
      WHERE company_id = $1 AND employee_id = $2
      ORDER BY created_at DESC LIMIT 1`,
-    [companyId, employeeId]
-  );
-  if (employmentRows[0]) {
-    const empDetails = employmentRows[0];
-    employee.work_location = empDetails.work_location;
-    employee.department = empDetails.department;
-    employee.job_title = empDetails.job_title;
-    employee.hire_date = empDetails.hire_date;
-    employee.employee_type = empDetails.employee_type;
-    employee.contract_type = empDetails.contract_type;
-    employee.reports_to = empDetails.reports_to;
-    employee.deputy_manager = empDetails.deputy_manager;
-    employee.payroll = {
-      base_salary: empDetails.base_salary,
-      pay_frequency: empDetails.pay_frequency,
-      bank_name: empDetails.bank_name,
-      bank_account: empDetails.bank_account_number
-    };
-  } else {
-    employee.payroll = {};
-  }
-  // 6. Part-time interval (if part-time)
-  if (employee.employee_type && employee.employee_type.toLowerCase() === 'part_time') {
-    // Get part_time_interval from employee_part_time_details
-    const { rows: intervalRows } = await pool.query(
-      `SELECT part_time_interval FROM employee_part_time_details
+      [companyId, employeeId]
+    );
+    if (employmentRows[0]) {
+      const empDetails = employmentRows[0];
+      employee.work_location = empDetails.work_location;
+      employee.department = empDetails.department;
+      employee.job_title = empDetails.job_title;
+      employee.hire_date = empDetails.hire_date;
+      employee.employee_type = empDetails.employee_type;
+      employee.contract_type = empDetails.contract_type;
+      employee.reports_to = empDetails.reports_to;
+      employee.reports_to = empDetails.reports_to;
+      employee.deputy_manager = empDetails.deputy_manager;
+      employee.department_id = empDetails.department_id;
+      employee.job_id = empDetails.job_id;
+      employee.job_level_id = empDetails.job_level_id;
+      employee.job_level_name = empDetails.job_level_name;
+      employee.payroll = {
+        base_salary: empDetails.base_salary,
+        pay_frequency: empDetails.pay_frequency,
+        bank_name: empDetails.bank_name,
+        bank_account: empDetails.bank_account_number
+      };
+    } else {
+      employee.payroll = {};
+    }
+    // 6. Part-time interval (if part-time)
+    if (employee.employee_type && employee.employee_type.toLowerCase() === 'part_time') {
+      // Get part_time_interval from employee_part_time_details
+      const { rows: intervalRows } = await pool.query(
+        `SELECT part_time_interval FROM employee_part_time_details
        WHERE employment_detail_id = (
          SELECT id FROM employee_employment_details
          WHERE company_id = $1 AND employee_id = $2
          ORDER BY created_at DESC LIMIT 1
        ) LIMIT 1`,
-      [companyId, employeeId]
-    );
-    if (intervalRows[0] && intervalRows[0].part_time_interval) {
-      employee.part_time_interval = intervalRows[0].part_time_interval;
-    }
-    // Now fetch the schedule rows for the latest employment_detail
-    const { rows: scheduleRows } = await pool.query(
-      `SELECT week_number, day_of_week, start_time, end_time
+        [companyId, employeeId]
+      );
+      if (intervalRows[0] && intervalRows[0].part_time_interval) {
+        employee.part_time_interval = intervalRows[0].part_time_interval;
+      }
+      // Now fetch the schedule rows for the latest employment_detail
+      const { rows: scheduleRows } = await pool.query(
+        `SELECT week_number, day_of_week, start_time, end_time
        FROM employee_part_time_schedule
        WHERE employment_detail_id = (
          SELECT id FROM employee_employment_details
          WHERE company_id = $1 AND employee_id = $2
          ORDER BY created_at DESC LIMIT 1
        )`,
-      [companyId, employeeId]
-    );
-    employee.part_time_schedule = scheduleRows;
-  }
-  // Fetch leave balances if available
-  try {
-    const { rows: leaveRows } = await pool.query(
-      `SELECT id, leave_type, leave_type_key, total_days, remaining_days FROM employee_leave_balances
+        [companyId, employeeId]
+      );
+      employee.part_time_schedule = scheduleRows;
+    }
+    // Fetch leave balances if available
+    try {
+      const { rows: leaveRows } = await pool.query(
+        `SELECT id, leave_type, leave_type_key, total_days, remaining_days FROM employee_leave_balances
        WHERE company_id = $1 AND employee_id = $2 ORDER BY leave_type_key`,
-      [companyId, employeeId]
-    );
-    employee.leaveBalances = leaveRows;
-  } catch (e) {
-    employee.leaveBalances = [];
-  }
+        [companyId, employeeId]
+      );
+      employee.leaveBalances = leaveRows;
+    } catch (e) {
+      employee.leaveBalances = [];
+    }
 
-  return employee;
-}
-,
-//contract_type
+    return employee;
+  }
+  ,
+  //contract_type
   // ✅ GET/UPSERT Leave Balances for an employee
   async getLeaveBalances(companyId, employeeId) {
     const { rows } = await pool.query(
@@ -387,6 +445,10 @@ async findById(companyId, employeeId) {
           contract_type = $12,
           reports_to = $13,
           deputy_manager = $14,
+          department_id = $15,
+          job_id = $16,
+          job_level_id = $17,
+          job_level_name = $18,
           updated_at = NOW()
         WHERE company_id = $1 AND employee_id = $2
         RETURNING id;
@@ -405,7 +467,11 @@ async findById(companyId, employeeId) {
         data.payroll?.bank_account || data.bank_account_number || null,
         data.contract_type || null,
         data.reports_to || null,
-        data.deputy_manager || null
+        data.deputy_manager || null,
+        data.department_id || null,
+        data.job_id || null,
+        data.job_level_id || null,
+        data.job_level_name || null
       ];
       const { rows: employmentRows } = await client.query(updateEmploymentQuery, updateEmploymentValues);
       const employmentDetailId = employmentRows[0]?.id;
@@ -471,6 +537,39 @@ async findById(companyId, employeeId) {
               [companyId, employeeId, cert.name || cert.certification_name || null, cert.issuedBy || cert.issued_by || null, cert.expiryDate || cert.expiry_date || null, cert.attachment || null]
             );
           }
+        }
+      }
+
+      // Synchronize System Access (User Account)
+      if (data.create_user_account !== undefined) {
+        try {
+          // 1. Check if a user currently exists for the employee's email
+          const currentEmail = data.email || rows[0].email;
+          const { rows: existingUserRows } = await client.query(
+            `SELECT u.user_id FROM users u 
+             JOIN user_profiles p ON p.company_id = u.company_id AND p.user_id = u.user_id
+             WHERE u.company_id = $1 AND p.email = $2 LIMIT 1`,
+            [companyId, currentEmail]
+          );
+          const userExists = existingUserRows.length > 0;
+          const shouldHaveUser = String(data.create_user_account) === 'true';
+
+          if (shouldHaveUser && !userExists) {
+            // Provision user account
+            await UserModel.create(companyId, {
+              name: data.full_name || rows[0].name,
+              email: currentEmail,
+              phone: data.phone_number || rows[0].phone_number,
+              password: '0000',
+              role: 'staff'
+            });
+          } else if (!shouldHaveUser && userExists) {
+            // De-provision user account
+            await UserModel.remove(companyId, existingUserRows[0].user_id);
+          }
+        } catch (e) {
+          console.error('Failed to synchronize user access during employee update:', e);
+          throw new Error('Employee updated but failed to synchronize system access.');
         }
       }
 
@@ -546,10 +645,163 @@ async findById(companyId, employeeId) {
         `UPDATE employees SET status = $3, updated_at = NOW() WHERE company_id = $1 AND employee_id = $2 RETURNING *`,
         [companyId, employeeId, status]
       );
-      return rows[0] || null;
+      const updated = rows[0] || null;
+
+      if (!updated) return null;
+
+      // Attempt to find a corresponding user by employee email
+      try {
+        const email = updated.email;
+        if (email) {
+          const { rows: userRows } = await pool.query(
+            `SELECT u.user_id FROM users u
+             JOIN user_profiles p ON p.company_id = u.company_id AND p.user_id = u.user_id
+             WHERE u.company_id = $1 AND p.email = $2 LIMIT 1`,
+            [companyId, email]
+          );
+          const user = userRows[0];
+          if (user) {
+            if (String(status).toLowerCase() === 'active') {
+              await UserModel.activate(companyId, user.user_id);
+            } else if (['inactive', 'deactivated'].includes(String(status).toLowerCase())) {
+              await UserModel.deactivate(companyId, user.user_id);
+            }
+          }
+        }
+      } catch (e) {
+        // Non-fatal: log and continue returning updated employee
+        console.error('Error syncing user activation status:', e);
+      }
+
+      return updated;
     } catch (err) {
       console.error('Error updating employee status:', err);
       throw err;
+    }
+  },
+
+  async getInfo(companyId) {
+
+    try {
+      const department = await DepartmentModel.findAllWithJobs(companyId);
+      // LocationsModel is a default-exported class; create an instance first
+      const locationsInstance = new LocationsModel();
+      const locations = await locationsInstance.getLocationsByCompany(companyId);
+
+      return { department, locations };
+    } catch (err) {
+      console.error('Error fetching employee info:', err);
+      throw err;
+    }
+  },
+
+
+  async promoteEmployee(companyId, employeeId) {
+    const client = await pool.connect();
+    try {
+      await client.query('BEGIN');
+
+      // Get current employment details
+      const { rows: currentDetails } = await client.query(
+        `SELECT * FROM employee_employment_details 
+         WHERE company_id = $1 AND employee_id = $2 
+         ORDER BY effective_from DESC, created_at DESC LIMIT 1`,
+        [companyId, employeeId]
+      );
+
+      if (!currentDetails.length) {
+        throw new Error('Employee employment details not found');
+      }
+
+      const current = currentDetails[0];
+
+      // Check if employee has a job level assigned
+      if (!current.department_id || !current.job_id || !current.job_level_id) {
+        throw new Error('Employee does not have a job level assigned. Please assign a level first before promoting.');
+      }
+
+      // Get current level details
+      const { rows: currentLevels } = await client.query(
+        `SELECT * FROM job_levels 
+         WHERE company_id = $1 AND department_id = $2 AND job_id = $3 AND level_id = $4`,
+        [companyId, current.department_id, current.job_id, current.job_level_id]
+      );
+
+      if (!currentLevels.length) {
+        throw new Error('Current job level not found in system');
+      }
+
+      const currentLevel = currentLevels[0];
+
+      // Find next level (level_order + 1)
+      const { rows: nextLevels } = await client.query(
+        `SELECT * FROM job_levels 
+         WHERE company_id = $1 AND department_id = $2 AND job_id = $3 AND level_order = $4
+         ORDER BY level_order ASC LIMIT 1`,
+        [companyId, current.department_id, current.job_id, currentLevel.level_order + 1]
+      );
+
+      if (!nextLevels.length) {
+        throw new Error(`Employee is already at the highest level (${currentLevel.level_name}). No further promotion available.`);
+      }
+
+      const nextLevel = nextLevels[0];
+
+      // Create new employment detail record with promoted level
+      const { rows: newDetails } = await client.query(
+        `INSERT INTO employee_employment_details (
+          company_id, employee_id, effective_from, work_location, department, job_title,
+          hire_date, employee_type, base_salary, pay_frequency,
+          bank_name, bank_account_number, contract_type, reports_to, deputy_manager,
+          department_id, job_id, job_level_id, job_level_name
+        ) VALUES ($1,$2,CURRENT_DATE,$3,$4,$5,$6,$7,$8,$9,$10,$11,$12,$13,$14,$15,$16,$17,$18) RETURNING *`,
+        [
+          companyId,
+          employeeId,
+          current.work_location,
+          current.department,
+          current.job_title,
+          current.hire_date,
+          current.employee_type,
+          current.base_salary, // Keep same salary - HR must manually adjust
+          current.pay_frequency,
+          current.bank_name,
+          current.bank_account_number,
+          current.contract_type,
+          current.reports_to,
+          current.deputy_manager,
+          current.department_id,
+          current.job_id,
+          nextLevel.level_id,
+          nextLevel.level_name
+        ]
+      );
+
+      await client.query('COMMIT');
+
+      return {
+        success: true,
+        message: `Employee promoted from ${currentLevel.level_name} to ${nextLevel.level_name}`,
+        previousLevel: {
+          level_id: currentLevel.level_id,
+          level_name: currentLevel.level_name,
+          level_order: currentLevel.level_order
+        },
+        newLevel: {
+          level_id: nextLevel.level_id,
+          level_name: nextLevel.level_name,
+          level_order: nextLevel.level_order,
+          min_salary: nextLevel.min_salary,
+          max_salary: nextLevel.max_salary
+        },
+        employmentDetail: newDetails[0]
+      };
+    } catch (err) {
+      await client.query('ROLLBACK');
+      console.error('Error promoting employee:', err);
+      throw err;
+    } finally {
+      client.release();
     }
   }
 };

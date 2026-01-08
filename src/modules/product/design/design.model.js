@@ -1,14 +1,31 @@
 import pool from '../../../loaders/db.loader.js';
 
 export const DesignModel = {
-  async findAll(companyId) {
-    const q = `SELECT * FROM designs WHERE company_id = $1 ORDER BY created_at DESC`;
-    const { rows } = await pool.query(q, [companyId]);
+  async findAll(companyId, productId = null) {
+    let q = `
+      SELECT d.*, p.product_name as "productName", p.sku as "productSku"
+      FROM designs d
+      LEFT JOIN products p ON d.company_id = p.company_id AND d.product_id = p.product_id
+      WHERE d.company_id = $1
+    `;
+    const params = [companyId];
+    if (productId) {
+      q += ` AND d.product_id = $2`;
+      params.push(productId);
+    }
+    q += ` ORDER BY d.created_at DESC`;
+    const { rows } = await pool.query(q, params);
     return rows;
   },
 
   async findById(companyId, designId) {
-    const q = `SELECT * FROM designs WHERE company_id = $1 AND design_id = $2 LIMIT 1`;
+    const q = `
+      SELECT d.*, p.product_name as "productName", p.sku as "productSku"
+      FROM designs d
+      LEFT JOIN products p ON d.company_id = p.company_id AND d.product_id = p.product_id
+      WHERE d.company_id = $1 AND d.design_id = $2
+      LIMIT 1
+    `;
     const { rows } = await pool.query(q, [companyId, designId]);
     return rows[0] || null;
   },
@@ -18,22 +35,15 @@ export const DesignModel = {
     try {
       await client.query('BEGIN');
 
-      // generate design_id using companies.next_design_number if available
-      const nextRes = await client.query(
-        `UPDATE companies SET next_design_number = (COALESCE(NULLIF(next_design_number, ''), '0')::bigint + 1)::text WHERE company_id = $1 RETURNING next_design_number`,
-        [companyId]
-      );
-      let nextNum = Date.now();
-      if (nextRes.rows[0] && nextRes.rows[0].next_design_number) {
-        nextNum = parseInt(nextRes.rows[0].next_design_number, 10) || nextNum;
-      }
-      const design_id = `DSG-${String(nextNum).padStart(3, '0')}`;
+      // generate a simple random design_id
+      const uniq = `${Date.now()}-${Math.random().toString(36).slice(2, 6).toUpperCase()}`;
+      const design_id = `DSG-${uniq}`;
 
       const insertQ = `
         INSERT INTO designs (
-          company_id, design_id, design_name, description, status, tags, image_url, image_urls, metadata, created_by, created_at, updated_at
+          company_id, design_id, design_name, product_id, description, status, tags, image_url, image_urls, metadata, created_by, created_at, updated_at
         ) VALUES (
-          $1,$2,$3,$4,$5,$6,$7,$8,$9,$10,NOW(),NOW()
+          $1,$2,$3,$4,$5,$6,$7,$8,$9,$10,$11,NOW(),NOW()
         ) RETURNING *
       `;
 
@@ -41,6 +51,7 @@ export const DesignModel = {
         companyId,
         design_id,
         data.design_name || data.name || null,
+        data.productId || data.product_id || null,
         data.description || null,
         data.status || 'Active',
         data.tags || null,
@@ -69,19 +80,21 @@ export const DesignModel = {
       const q = `
         UPDATE designs SET
           design_name = $1,
-          description = $2,
-          status = $3,
-          tags = $4,
-          image_url = $5,
-          image_urls = $6,
-          metadata = $7,
+          product_id = $2,
+          description = $3,
+          status = $4,
+          tags = $5,
+          image_url = $6,
+          image_urls = $7,
+          metadata = $8,
           updated_at = NOW()
-        WHERE company_id = $8 AND design_id = $9
+        WHERE company_id = $9 AND design_id = $10
         RETURNING *
       `;
 
       const values = [
         data.design_name || data.name || null,
+        data.productId || data.product_id || null,
         data.description || null,
         data.status || null,
         data.tags || null,

@@ -43,5 +43,35 @@ export const DepartmentService = {
 
   async removeJob(companyId, departmentId, jobId) {
     return DepartmentModel.removeJob(companyId, departmentId, jobId);
+  },
+
+  // Job Levels
+  async createJobLevel(companyId, departmentId, jobId, payload) {
+    const levelId = payload.level_id || `LVL-${Date.now().toString().slice(-6)}`;
+    return DepartmentModel.createJobLevel(companyId, departmentId, jobId, { ...payload, level_id: levelId });
+  },
+
+  async listJobLevels(companyId, departmentId, jobId) {
+    return DepartmentModel.findJobLevels(companyId, departmentId, jobId);
+  },
+
+  async getJobLevel(companyId, departmentId, jobId, levelId) {
+    return DepartmentModel.findJobLevelById(companyId, departmentId, jobId, levelId);
+  },
+
+  async updateJobLevel(companyId, departmentId, jobId, levelId, payload) {
+    return DepartmentModel.updateJobLevel(companyId, departmentId, jobId, levelId, payload);
+  },
+
+  async removeJobLevel(companyId, departmentId, jobId, levelId) {
+    return DepartmentModel.removeJobLevel(companyId, departmentId, jobId, levelId);
+  },
+
+  async getJobWithLevels(companyId, departmentId, jobId) {
+    return DepartmentModel.findJobWithLevels(companyId, departmentId, jobId);
+  },
+
+  async listJobsWithLevels(companyId, departmentId) {
+    return DepartmentModel.findJobsWithLevels(companyId, departmentId);
   }
 };

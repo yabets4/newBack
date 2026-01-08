@@ -1,11 +1,11 @@
-// controllers/leads.controller.js
 import { LeadsService } from "./lead.service.js";
 import { ok, badRequest, notFound } from "../../../utils/apiResponse.js";
+import { getCompanyNameById } from "../../../middleware/services/company.service.js";
 
 // GET all leads
 export async function getLeads(req, res) {
   try {
-    const { companyID } = req.auth; 
+    const { companyID } = req.auth;
     const leads = await LeadsService.list(companyID);
     return ok(res, leads);
   } catch (err) {
@@ -19,7 +19,7 @@ export async function getExistingLeads(req, res) {
     console.log("company id is ", companyID);
 
     const leads = await LeadsService.listExisting(companyID);
-    
+
     return ok(res, leads);
   } catch (err) {
     console.error("Error fetching leads:", err);
@@ -33,23 +33,27 @@ export async function createLeadOrCustomer(req, res) {
     const { companyID } = req.auth;
     const leadData = { ...req.body };
     console.log(leadData);
-    
+
     // Prefer descriptions sent in the multipart form under
     // `attachment_descriptions[]` (or `attachment_descriptions`) matching file order.
     let attachmentDescriptions = req.body.attachment_descriptions || req.body['attachment_descriptions[]'] || [];
     if (typeof attachmentDescriptions === 'string') attachmentDescriptions = [attachmentDescriptions];
 
+    // Fetch company name to match Multer's folder structure
+    const companyName = await getCompanyNameById(companyID) || 'default';
+    const safeName = companyName.replace(/[^a-zA-Z0-9-_]/g, '_');
+
     const attachments = (req.files || []).map((f, idx) => ({
-      file_url: `/uploads/${req.tenantPrefix || "default"}/leads/${f.filename}`,
+      file_url: `/uploads/${safeName}/leads/${f.filename}`,
       description: (attachmentDescriptions && attachmentDescriptions[idx]) ? attachmentDescriptions[idx] : f.originalname,
     }));
 
     const newLead = await LeadsService.createLead(companyID, leadData, attachments);
     return ok(res, newLead);
   } catch (err) {
-  console.error("Lead creation error:", err.message, err.details);
-  res.status(400).json({ error: err.message });
-}
+    console.error("Lead creation error:", err.message, err.details);
+    res.status(400).json({ error: err.message });
+  }
 
 }
 
@@ -77,8 +81,12 @@ export async function createLead(req, res) {
     let attachmentDescriptions = req.body.attachment_descriptions || req.body['attachment_descriptions[]'] || [];
     if (typeof attachmentDescriptions === 'string') attachmentDescriptions = [attachmentDescriptions];
 
+    // Fetch company name to match Multer's folder structure
+    const companyName = await getCompanyNameById(companyID) || 'default';
+    const safeName = companyName.replace(/[^a-zA-Z0-9-_]/g, '_');
+
     const attachments = (req.files || []).map((f, idx) => ({
-      file_url: `/uploads/${req.tenantPrefix || "default"}/leads/${f.filename}`,
+      file_url: `/uploads/${safeName}/leads/${f.filename}`,
       description: (attachmentDescriptions && attachmentDescriptions[idx]) ? attachmentDescriptions[idx] : f.originalname,
     }));
 
@@ -115,8 +123,12 @@ export async function updateLead(req, res) {
     let attachmentDescriptions = leadData.attachment_descriptions || leadData['attachment_descriptions[]'] || [];
     if (typeof attachmentDescriptions === 'string') attachmentDescriptions = [attachmentDescriptions];
 
+    // Fetch company name to match Multer's folder structure
+    const companyName = await getCompanyNameById(companyID) || 'default';
+    const safeName = companyName.replace(/[^a-zA-Z0-9-_]/g, '_');
+
     const newAttachments = (req.files || []).map((f, idx) => ({
-      file_url: `/uploads/${req.tenantPrefix || "default"}/leads/${f.filename}`,
+      file_url: `/uploads/${safeName}/leads/${f.filename}`,
       description: (attachmentDescriptions && attachmentDescriptions[idx]) ? attachmentDescriptions[idx] : f.originalname,
     }));
 

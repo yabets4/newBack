@@ -1,5 +1,6 @@
 import { Router } from "express";
-import { getAllLeads, getQuotes,
+import {
+  getAllLeads, getQuotes,
   getQuote,
   createQuote,
   updateQuote,
@@ -8,31 +9,38 @@ import { getAllLeads, getQuotes,
   deleteQuoteAttachment,
   addQuoteItem,
   addQuoteItemAttachment,
-  deleteQuoteItemAttachment, } from "./quote.controller.js";
+  deleteQuoteItemAttachment,
+} from "./quote.controller.js";
 import { uploadProjectFiles } from "../../../middleware/multer.middleware.js";
+import permission from "../../../middleware/permission.middleware.js";
 
 
 const r = Router();
 
-r.get("/leads/", getAllLeads);
-r.get("/", getQuotes);                  // GET all quotes
-r.get("/:quoteId", getQuote);           // GET single quote
+const canRead = permission(['quotes.read.all', 'quotes.read.own_only']);
+const canCreate = permission('quotes.create');
+const canUpdate = permission(['quotes.update.all', 'quotes.update.own_only']);
+const canDelete = permission(['quotes.delete.all', 'quotes.delete.own_only']);
+
+r.get("/leads/", canRead, getAllLeads);
+r.get("/", canRead, getQuotes);                  // GET all quotes
+r.get("/:quoteId", canRead, getQuote);           // GET single quote
 
 // Use `.any()` so multipart requests with multiple field names (attachments, item_files, etc.) are accepted
-r.post("/", uploadProjectFiles.any(), createQuote);               // CREATE quote (supports multipart attachments)
-r.put("/:quoteId", uploadProjectFiles.any(), updateQuote);        // UPDATE quote (supports multipart attachments)
-r.delete("/:quoteId", deleteQuote);     // DELETE quote
+r.post("/", canCreate, uploadProjectFiles.any(), createQuote);               // CREATE quote (supports multipart attachments)
+r.put("/:quoteId", canUpdate, uploadProjectFiles.any(), updateQuote);        // UPDATE quote (supports multipart attachments)
+r.delete("/:quoteId", canDelete, deleteQuote);     // DELETE quote
 
-// Quote attachments
-r.post("/:quoteId/attachments", uploadProjectFiles.any(), addQuoteAttachment);               // add attachment (multipart)
-r.delete("/:quoteId/attachments/:attachmentId", deleteQuoteAttachment); // remove attachment
+// Quote attachments (Update)
+r.post("/:quoteId/attachments", canUpdate, uploadProjectFiles.any(), addQuoteAttachment);               // add attachment (multipart)
+r.delete("/:quoteId/attachments/:attachmentId", canUpdate, deleteQuoteAttachment); // remove attachment
 
-// Quote items
-r.post("/:quoteId/items", addQuoteItem);                           // add item to quote
+// Quote items (Update)
+r.post("/:quoteId/items", canUpdate, addQuoteItem);                           // add item to quote
 
-// Quote item attachments
-r.post("/items/:quoteItemId/attachments", uploadProjectFiles.any(), addQuoteItemAttachment);           // add attachment to an item (multipart)
-r.delete("/items/attachments/:attachmentId", deleteQuoteItemAttachment);     // remove attachment from an item
+// Quote item attachments (Update)
+r.post("/items/:quoteItemId/attachments", canUpdate, uploadProjectFiles.any(), addQuoteItemAttachment);           // add attachment to an item (multipart)
+r.delete("/items/attachments/:attachmentId", canUpdate, deleteQuoteItemAttachment);     // remove attachment from an item
 
 
 export default r;

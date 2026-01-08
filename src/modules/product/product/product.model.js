@@ -29,7 +29,15 @@ export const ProductModel = {
 				if (profile.media) product.media = profile.media;
 				if (profile.image_url) product.image_url = profile.image_url;
 				if (profile.description) product.description = profile.description;
-				if (profile.specifications) product.specifications = profile.specifications;
+				if (profile.specifications) {
+					// Specifications may hold configurable attributes for templates.
+					// Try to parse JSON strings into objects, but fall back to raw value.
+					try {
+						product.configurableAttributes = typeof profile.specifications === 'string' ? JSON.parse(profile.specifications) : profile.specifications;
+					} catch (e) {
+						product.configurableAttributes = profile.specifications;
+					}
+				}
 			}
 		} catch (e) {
 			// non-fatal: proceed without profile
@@ -60,18 +68,9 @@ export const ProductModel = {
 		try {
 			await client.query('BEGIN');
 
-			// generate product_id using companies.next_product_number if available
-			// safely increment next_product_number even if stored as text
-			const nextRes = await client.query(
-				`UPDATE companies SET next_product_number = (COALESCE(NULLIF(next_product_number, ''), '0')::bigint + 1)::text WHERE company_id = $1 RETURNING next_product_number`,
-				[companyId]
-			);
-			let nextNum = Date.now();
-			if (nextRes.rows[0] && nextRes.rows[0].next_product_number) {
-				// returned value is text; parse to integer
-				nextNum = parseInt(nextRes.rows[0].next_product_number, 10) || nextNum;
-			}
-			const product_id = `PRD-${String(nextNum).padStart(3, '0')}`;
+			// generate a simple unique product_id (do not touch companies.next_product_number)
+			const uniq = `${Date.now()}-${Math.random().toString(36).slice(2,6).toUpperCase()}`;
+			const product_id = `PRD-${uniq}`;
 
 			const insertQ = `
 				INSERT INTO products (
@@ -94,18 +93,42 @@ export const ProductModel = {
 				data.status || 'Active',
 				data.uom || null,
 				data.product_type || null,
-				data.cost_price || null,
-				data.length || null,
-				data.width || null,
-				data.height || null,
+				data.cost_price || 0,
+				data.length || 0,
+				data.width || 0,
+				data.height || 0,
 				data.dimension_unit || null,
-				data.weight_value || null,
+				data.weight_value || 0,
 				data.weight_unit || null,
 				data.tags || null
 			];
+			console.log("product Data", values);
+			
 
 			const { rows } = await client.query(insertQ, values);
 			const inserted = rows[0];
+
+			// persist product_profile (media / image_url / description / specifications) if provided
+			try {
+				if (data.image_urls || data.image_url || data.description || data.specifications || data.configurableAttributes) {
+					const mediaVal = data.image_urls ? JSON.stringify(data.image_urls) : (data.media ? JSON.stringify(data.media) : null);
+					const imageUrlVal = data.image_url || (Array.isArray(data.image_urls) && data.image_urls[0]) || null;
+					const descVal = data.description || null;
+					let specsVal = null;
+					if (data.specifications) {
+						specsVal = typeof data.specifications === 'object' ? JSON.stringify(data.specifications) : data.specifications;
+					} else if (data.configurableAttributes) {
+						specsVal = typeof data.configurableAttributes === 'object' ? JSON.stringify(data.configurableAttributes) : data.configurableAttributes;
+					}
+					await client.query(
+						`INSERT INTO product_profile (company_id, product_id, description, specifications, media, image_url, created_at, updated_at)
+						 VALUES ($1,$2,$3,$4,$5,$6,NOW(),NOW())`,
+						[companyId, inserted.product_id, descVal, specsVal, mediaVal, imageUrlVal]
+					);
+				}
+			} catch (e) {
+				console.warn('Failed to persist product_profile for', inserted && inserted.product_id, e.message);
+			}
 
 			// Persist variants if provided. Accept array or JSON string.
 			if (data.variants) {
@@ -239,7 +262,30 @@ export const ProductModel = {
 					}
 				}
 
-				await client.query('COMMIT');
+						// persist/update product_profile (media / image_url / description / specifications) if provided
+						try {
+							if (data.image_urls || data.image_url || data.description || data.specifications || data.configurableAttributes) {
+								const mediaVal = data.image_urls ? JSON.stringify(data.image_urls) : (data.media ? JSON.stringify(data.media) : null);
+								const imageUrlVal = data.image_url || (Array.isArray(data.image_urls) && data.image_urls[0]) || null;
+								const descVal = data.description || null;
+								let specsVal = null;
+								if (data.specifications) {
+									specsVal = typeof data.specifications === 'object' ? JSON.stringify(data.specifications) : data.specifications;
+								} else if (data.configurableAttributes) {
+									specsVal = typeof data.configurableAttributes === 'object' ? JSON.stringify(data.configurableAttributes) : data.configurableAttributes;
+								}
+								const profRes = await client.query('SELECT id FROM product_profile WHERE company_id = $1 AND product_id = $2 LIMIT 1', [companyId, productId]);
+								if (profRes.rows[0]) {
+									await client.query(`UPDATE product_profile SET description = $1, specifications = $2, media = $3, image_url = $4, updated_at = NOW() WHERE company_id = $5 AND product_id = $6`, [descVal, specsVal, mediaVal, imageUrlVal, companyId, productId]);
+								} else {
+									await client.query(`INSERT INTO product_profile (company_id, product_id, description, specifications, media, image_url, created_at, updated_at) VALUES ($1,$2,$3,$4,$5,$6,NOW(),NOW())`, [companyId, productId, descVal, specsVal, mediaVal, imageUrlVal]);
+								}
+							}
+						} catch (e) {
+							console.warn('Failed to persist product_profile for', productId, e.message);
+						}
+
+						await client.query('COMMIT');
 				return updated;
 		} catch (err) {
 			await client.query('ROLLBACK');

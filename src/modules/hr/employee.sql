@@ -1,6 +1,3 @@
--- ========================
--- 1. Core Employees Table
--- ========================
 CREATE TABLE employees (
     company_id VARCHAR(20) NOT NULL REFERENCES companies(company_id) ON DELETE CASCADE,
     employee_id VARCHAR(20) NOT NULL,  -- EMP-XX
@@ -21,9 +18,6 @@ CREATE TABLE employees (
     PRIMARY KEY (company_id, employee_id)
 );
 
--- ======================================================
--- 2. Employment Details Table (versioned, changing data)
--- ======================================================
 CREATE TABLE employee_employment_details (
         id BIGSERIAL PRIMARY KEY,
         company_id VARCHAR(20) NOT NULL,
@@ -48,11 +42,6 @@ CREATE TABLE employee_employment_details (
             ON DELETE CASCADE
 );
 
-
-contract_type
--- ==========================================
--- 3. Full-Time / Apparent Employee Details
--- ==========================================
 CREATE TABLE employee_full_time_details (
     id BIGSERIAL PRIMARY KEY,
     employment_detail_id BIGINT NOT NULL REFERENCES employee_employment_details(id) ON DELETE CASCADE,
@@ -61,9 +50,6 @@ CREATE TABLE employee_full_time_details (
     deputy_manager VARCHAR(20)
 );
 
--- ================================
--- 4. Contractor Employee Details
--- ================================
 CREATE TABLE employee_contractor_details (
     id BIGSERIAL PRIMARY KEY,
     employment_detail_id BIGINT NOT NULL REFERENCES employee_employment_details(id) ON DELETE CASCADE,
@@ -73,18 +59,12 @@ CREATE TABLE employee_contractor_details (
     deputy_manager VARCHAR(20)
 );
 
--- ===============================
--- 5. Part-Time Employee Details
--- ===============================
 CREATE TABLE employee_part_time_details (
     id BIGSERIAL PRIMARY KEY,
     employment_detail_id BIGINT NOT NULL REFERENCES employee_employment_details(id) ON DELETE CASCADE,
     part_time_interval VARCHAR(20) CHECK (part_time_interval IN ('weekly','bi_monthly','monthly'))
 );
 
--- ============================================
--- 6. Part-Time Schedule (weekly/bi-monthly/...)
--- ============================================
 CREATE TABLE employee_part_time_schedule (
     id BIGSERIAL PRIMARY KEY,
     employment_detail_id BIGINT NOT NULL REFERENCES employee_employment_details(id) ON DELETE CASCADE,
@@ -95,9 +75,6 @@ CREATE TABLE employee_part_time_schedule (
     end_time TIME
 );
 
--- ================================
--- 7. Emergency Contacts (multiple)
--- ================================
 CREATE TABLE employee_emergency_contacts (
         id BIGSERIAL PRIMARY KEY,
         company_id VARCHAR(20) NOT NULL,
@@ -114,9 +91,6 @@ CREATE TABLE employee_emergency_contacts (
             ON DELETE CASCADE
 );
 
--- =================================
--- 8. Skills & Certifications (multiple)
--- =================================
 CREATE TABLE employee_skills_certifications (
         id BIGSERIAL PRIMARY KEY,
         company_id VARCHAR(20) NOT NULL,
@@ -132,9 +106,6 @@ CREATE TABLE employee_skills_certifications (
             REFERENCES employees(company_id, employee_id)
             ON DELETE CASCADE
 );
-
--- Migration: create employee_leave_balances table
--- Created: 2025-11-19
 
 CREATE TABLE employee_leave_balances (
     id BIGSERIAL PRIMARY KEY,

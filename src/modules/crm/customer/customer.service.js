@@ -49,42 +49,44 @@ export const CustomersService = {
 
   // Update customer by customer_id
   async update(companyId, customerId, data) {
-  console.log("[Service] Updating customer:", customerId, "for company:", companyId);
-  console.log("[Service] Raw update data:", data);
+    console.log("[Service] Updating customer:", customerId, "for company:", companyId);
+    console.log("[Service] Raw update data:", data);
 
-  if (!data || Object.keys(data).length === 0) {
-    console.warn("[Service] No data provided to update for customer:", customerId);
-    return null; // nothing to update
-  }
+    if (!data || Object.keys(data).length === 0) {
+      console.warn("[Service] No data provided to update for customer:", customerId);
+      return null; // nothing to update
+    }
 
-  // Flatten payload and ensure NOT NULL fields are set
-  const payloadForModel = {
-    name: data.name || "Unnamed",
-    email: data.email || null,
-    phone: data.phone || null,
-    tin_number: data.tin_number || null,
-    billing_address: data.billing_address || "No billing address provided", // NOT NULL fallback
-    shipping_address: data.shipping_address || "", // can be empty
-    gender: data.gender || null,
-    birthday: data.birthday || null,
-    contact_name: data.contact_name || null,
-    contact_phone: data.contact_phone || null,
-    job_title: data.job_title || null,
-    photo_url: data.photo_url || null,
-    customer_type: data.customer_type || "Individual",
-  };
+    // Flatten payload and ensure NOT NULL fields are set
+    const payloadForModel = {
+      name: data.name || "Unnamed",
+      email: data.email || null,
+      phone: data.phone || null,
+      tin_number: data.tin_number || null,
+      billing_address: data.billing_address || "No billing address provided", // NOT NULL fallback
+      shipping_address: data.shipping_address || "", // can be empty
+      gender: data.gender || null,
+      birthday: data.birthday || null,
+      contact_name: data.contact_name || null,
+      contact_phone: data.contact_phone || null,
+      job_title: data.job_title || null,
+      photo_url: data.photo_url || null,
+      customer_type: data.customer_type || "Individual",
+      latitude: data.latitude ?? null,
+      longitude: data.longitude ?? null,
+    };
 
-  console.log("[Service] Flattened payload for model:", payloadForModel);
+    console.log("[Service] Flattened payload for model:", payloadForModel);
 
-  try {
-    const updatedCustomer = await CustomersModel.update(companyId, customerId, payloadForModel);
-    console.log("[Service] Customer updated successfully:", updatedCustomer?.customer_id);
-    return updatedCustomer;
-  } catch (err) {
-    console.error("[Service] Error updating customer:", err);
-    throw err;
-  }
-},
+    try {
+      const updatedCustomer = await CustomersModel.update(companyId, customerId, payloadForModel);
+      console.log("[Service] Customer updated successfully:", updatedCustomer?.customer_id);
+      return updatedCustomer;
+    } catch (err) {
+      console.error("[Service] Error updating customer:", err);
+      throw err;
+    }
+  },
 
 
   // Delete customer by customer_id

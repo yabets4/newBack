@@ -5,7 +5,8 @@ import { getCompanyNameById } from '../../../middleware/services/company.service
 export async function getDesigns(req, res) {
   try {
     const { companyID } = req.auth;
-    const designs = await DesignService.list(companyID);
+    const { productId } = req.query;
+    const designs = await DesignService.list(companyID, productId);
     // normalize upload paths to absolute URLs for client convenience
     const hostBase = `${req.protocol}://${req.get('host')}`;
     const normalizePath = (p) => {

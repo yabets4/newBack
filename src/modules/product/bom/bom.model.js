@@ -1,14 +1,31 @@
 import pool from '../../../loaders/db.loader.js';
 
 export const BOMModel = {
-  async findAll(companyId) {
-    const q = `SELECT * FROM boms WHERE company_id = $1 ORDER BY last_modified_date DESC`;
-    const { rows } = await pool.query(q, [companyId]);
+  async findAll(companyId, productId = null) {
+    let q = `
+      SELECT b.*, p.product_name as "productName", p.sku as "productSku"
+      FROM boms b
+      LEFT JOIN products p ON b.company_id = p.company_id AND b.product_id = p.product_id
+      WHERE b.company_id = $1
+    `;
+    const params = [companyId];
+    if (productId) {
+      q += ` AND b.product_id = $2`;
+      params.push(productId);
+    }
+    q += ` ORDER BY b.last_modified_date DESC`;
+    const { rows } = await pool.query(q, params);
     return rows;
   },
 
   async findById(companyId, bomId) {
-    const q = `SELECT * FROM boms WHERE company_id = $1 AND bom_id = $2 LIMIT 1`;
+    const q = `
+      SELECT b.*, p.product_name as "productName", p.sku as "productSku"
+      FROM boms b
+      LEFT JOIN products p ON b.company_id = p.company_id AND b.product_id = p.product_id
+      WHERE b.company_id = $1 AND b.bom_id = $2
+      LIMIT 1
+    `;
     const { rows } = await pool.query(q, [companyId, bomId]);
     const bom = rows[0] || null;
     if (!bom) return null;
@@ -39,10 +56,10 @@ export const BOMModel = {
 
       const q = `
         INSERT INTO boms (
-          company_id, bom_id, name, product_code, version, status, components, estimated_cost,
+          company_id, bom_id, name, product_code, product_id, version, status, components, estimated_cost,
           component_count, created_by, approved_by, creation_date, last_modified_date, tags
         ) VALUES (
-          $1,$2,$3,$4,$5,$6,$7,$8,$9,$10,$11,$12,$13,$14
+          $1,$2,$3,$4,$5,$6,$7,$8,$9,$10,$11,$12,$13,$14,$15
         ) RETURNING *
       `;
 
@@ -51,6 +68,7 @@ export const BOMModel = {
         bom_id,
         data.name,
         data.productCode || data.product_code || null,
+        data.productId || data.product_id || null,
         data.version || null,
         data.status || 'Draft',
         JSON.stringify(data.components || []),
@@ -78,7 +96,7 @@ export const BOMModel = {
           companyId,
           bom_id,
           component_id,
-          c.name || null,
+          (c.name || c.component_name || c.material_name || c.raw_material_name || c.rawMaterialName) || null,
           c.quantity != null ? c.quantity : 1,
           c.unit || null,
           c.manufacturer || null,
@@ -90,7 +108,7 @@ export const BOMModel = {
       }
 
       await client.query('COMMIT');
-      // attach components for return
+
       const created = rows[0];
       created.components = comps;
       return created;
@@ -110,21 +128,23 @@ export const BOMModel = {
         UPDATE boms SET
           name = $1,
           product_code = $2,
-          version = $3,
-          status = $4,
-          components = $5,
-          estimated_cost = $6,
-          component_count = $7,
-          approved_by = $8,
-          last_modified_date = $9,
-          tags = $10
-        WHERE company_id = $11 AND bom_id = $12
+          product_id = $3,
+          version = $4,
+          status = $5,
+          components = $6,
+          estimated_cost = $7,
+          component_count = $8,
+          approved_by = $9,
+          last_modified_date = $10,
+          tags = $11
+        WHERE company_id = $12 AND bom_id = $13
         RETURNING *
       `;
 
       const values = [
         data.name || null,
         data.productCode || data.product_code || null,
+        data.productId || data.product_id || null, // Handle product_id update
         data.version || null,
         data.status || null,
         JSON.stringify(data.components || []),
@@ -154,7 +174,7 @@ export const BOMModel = {
           companyId,
           bomId,
           component_id,
-          c.name || null,
+          (c.name || c.component_name || c.material_name || c.raw_material_name || c.rawMaterialName) || null,
           c.quantity != null ? c.quantity : 1,
           c.unit || null,
           c.manufacturer || null,
@@ -190,5 +210,125 @@ export const BOMModel = {
     } finally {
       client.release();
     }
-  }
+  },
+
+  // --- Dynamic BOM Rules CRUD ---
+  async findRules(companyId, productId) {
+    const vals = [companyId];
+    let q = `SELECT * FROM dynamic_bom_rules WHERE company_id = $1`;
+    if (productId) {
+      q += ` AND product_id = $2`;
+      vals.push(productId);
+    }
+    q += ` ORDER BY priority ASC, updated_at DESC`;
+    const { rows } = await pool.query(q, vals);
+    return (rows || []).map(r => ({
+      id: r.rule_id,
+      productId: r.product_id,
+      name: r.name,
+      description: r.description,
+      priority: r.priority,
+      status: r.status,
+      conditions: r.conditions || [],
+      actions: r.actions || [],
+      createdAt: r.created_at,
+      updatedAt: r.updated_at,
+    }));
+  },
+
+  async findRuleById(companyId, ruleId) {
+    const q = `SELECT * FROM dynamic_bom_rules WHERE company_id = $1 AND rule_id = $2 LIMIT 1`;
+    const { rows } = await pool.query(q, [companyId, ruleId]);
+    const r = rows[0] || null;
+    if (!r) return null;
+    return {
+      id: r.rule_id,
+      productId: r.product_id,
+      name: r.name,
+      description: r.description,
+      priority: r.priority,
+      status: r.status,
+      conditions: r.conditions || [],
+      actions: r.actions || [],
+      createdAt: r.created_at,
+      updatedAt: r.updated_at,
+    };
+  },
+
+  async insertRule(companyId, data) {
+    const q = `
+      INSERT INTO dynamic_bom_rules (company_id, rule_id, product_id, name, description, priority, status, conditions, actions, created_at, updated_at)
+      VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9,NOW(),NOW()) RETURNING *
+    `;
+    const values = [
+      companyId,
+      data.id || data.rule_id || `RULE-${Date.now()}`,
+      data.productId,
+      data.name || null,
+      data.description || null,
+      data.priority != null ? data.priority : 100,
+      data.status || 'Active',
+      JSON.stringify(data.conditions || []),
+      JSON.stringify(data.actions || []),
+    ];
+    const { rows } = await pool.query(q, values);
+    const r = rows[0];
+    return {
+      id: r.rule_id,
+      productId: r.product_id,
+      name: r.name,
+      description: r.description,
+      priority: r.priority,
+      status: r.status,
+      conditions: r.conditions || [],
+      actions: r.actions || [],
+      createdAt: r.created_at,
+      updatedAt: r.updated_at,
+    };
+  },
+
+  async updateRule(companyId, ruleId, data) {
+    const q = `
+      UPDATE dynamic_bom_rules SET
+        name = $1,
+        description = $2,
+        priority = $3,
+        status = $4,
+        conditions = $5,
+        actions = $6,
+        updated_at = NOW()
+      WHERE company_id = $7 AND rule_id = $8
+      RETURNING *
+    `;
+    const values = [
+      data.name || null,
+      data.description || null,
+      data.priority != null ? data.priority : 100,
+      data.status || 'Active',
+      JSON.stringify(data.conditions || []),
+      JSON.stringify(data.actions || []),
+      companyId,
+      ruleId,
+    ];
+    const { rows } = await pool.query(q, values);
+    const r = rows[0];
+    if (!r) return null;
+    return {
+      id: r.rule_id,
+      productId: r.product_id,
+      name: r.name,
+      description: r.description,
+      priority: r.priority,
+      status: r.status,
+      conditions: r.conditions || [],
+      actions: r.actions || [],
+      createdAt: r.created_at,
+      updatedAt: r.updated_at,
+    };
+  },
+
+  async deleteRule(companyId, ruleId) {
+    const res = await pool.query(`DELETE FROM dynamic_bom_rules WHERE company_id = $1 AND rule_id = $2`, [companyId, ruleId]);
+    return res.rowCount > 0;
+  },
 };

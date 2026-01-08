@@ -16,7 +16,7 @@ import FinishedProduct from './Finished Product/finishedProduct.route.js';
 
 
 const r = Router();
-r.use(auth(false), authenticateJWT, CheckCompanyStatus, requestCounter);
+// r.use(auth(false), authenticateJWT, CheckCompanyStatus, requestCounter); // Removed global auth
 
 //------ Raw-Material -------
 r.use('/raw-materials', RawMaterial);

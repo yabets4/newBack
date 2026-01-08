@@ -58,7 +58,7 @@ export default class PerformanceService {
       return await PerformanceModel.findFeedback(companyId, opts);
     } catch (err) {
       console.error('PerformanceService.listFeedback error', err);
-      throw new Error('Could not fetch feedback');
+      throw new Error(`Could not fetch feedback: ${err.message}`);
     }
   }
 

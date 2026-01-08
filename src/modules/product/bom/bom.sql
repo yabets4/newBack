@@ -1,9 +1,9 @@
--- BOMs table for product module
 CREATE TABLE IF NOT EXISTS boms (
   company_id VARCHAR(20) NOT NULL,
   bom_id VARCHAR(60) NOT NULL PRIMARY KEY,
   name TEXT NOT NULL,
   product_code VARCHAR(60),
+  product_id VARCHAR(50),
   version VARCHAR(30),
   status VARCHAR(50) DEFAULT 'Draft',
   components JSONB DEFAULT '[]',
@@ -13,7 +13,8 @@ CREATE TABLE IF NOT EXISTS boms (
   approved_by VARCHAR(100),
   creation_date TIMESTAMP DEFAULT NOW(),
   last_modified_date TIMESTAMP DEFAULT NOW(),
-  tags JSONB DEFAULT '[]'
+  tags JSONB DEFAULT '[]',
+  FOREIGN KEY (company_id, product_id) REFERENCES products(company_id, product_id) ON DELETE SET NULL
 );
 
 CREATE INDEX IF NOT EXISTS idx_boms_company_id ON boms(company_id);
@@ -33,3 +34,20 @@ CREATE TABLE IF NOT EXISTS bom_components (
 );
 
 CREATE INDEX IF NOT EXISTS idx_bom_components_bom ON bom_components(company_id, bom_id);
+
+-- Dynamic BOM rules table
+CREATE TABLE IF NOT EXISTS dynamic_bom_rules (
+  company_id VARCHAR(20) NOT NULL,
+  rule_id VARCHAR(80) NOT NULL PRIMARY KEY,
+  product_id VARCHAR(80) NOT NULL,
+  name TEXT,
+  description TEXT,
+  priority INTEGER DEFAULT 100,
+  status VARCHAR(50) DEFAULT 'Active',
+  conditions JSONB DEFAULT '[]',
+  actions JSONB DEFAULT '[]',
+  created_at TIMESTAMP DEFAULT NOW(),
+  updated_at TIMESTAMP DEFAULT NOW()
+);
+
+CREATE INDEX IF NOT EXISTS idx_dynamic_bom_rules_company_product ON dynamic_bom_rules(company_id, product_id);

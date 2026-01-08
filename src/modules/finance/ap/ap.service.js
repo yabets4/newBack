@@ -1,5 +1,5 @@
+import TransactionManager from '../transaction.manager.js';
 import ApModel from './ap.model.js';
-import pool from '../../../loaders/db.loader.js';
 
 export const ApService = {
   async createInvoice(companyId, payload) {
@@ -26,9 +26,13 @@ export const ApService = {
     // Basic total calculation
     const total = payload.lines.reduce((s, l) => s + (Number(l.line_amount) || 0), 0);
     payload.total_amount = total;
+    payload.status = 'Posted'; // GOVERNANCE: auto-post to lock record
 
-    const created = await ApModel.insertInvoice(companyId, payload);
-    return created;
+    // Delegate to Transaction Manager for Unified Control
+    // Note: We're passing 'AP_INVOICE_CREATE'. We need to ensure a Mapping exists for this event
+    // or specifically per invoice type if needed. For now assuming generic mapping.
+    const result = await TransactionManager.handleEvent(companyId, 'AP_INVOICE_CREATE', payload, 'system'); // user?
+    return result.businessRecord;
   },
 
   async listInvoices(companyId) {
@@ -99,6 +103,21 @@ export const ApService = {
     }
 
     return await ApModel.findById(companyId, invoiceId);
+  },
+
+  /**
+   * Reverses an AP Invoice via TransactionManager.
+   */
+  async reverseInvoice(companyId, invoiceId, reason, user) {
+    return await TransactionManager.reverseTransaction(companyId, 'AP', invoiceId, reason, user);
+  },
+
+  async updateInvoice(companyId, invoiceId, payload) {
+    throw new Error('Direct updates to posted invoices are disabled. Use reversal and recreation.');
+  },
+
+  async deleteInvoice(companyId, invoiceId) {
+    throw new Error('Deletion of posted invoices is disabled. Use reversal.');
   }
 };
 

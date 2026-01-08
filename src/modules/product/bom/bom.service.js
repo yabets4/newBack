@@ -1,8 +1,8 @@
 import { BOMModel } from './bom.model.js';
 
 export const BOMService = {
-  async list(companyId) {
-    return await BOMModel.findAll(companyId);
+  async list(companyId, productId = null) {
+    return await BOMModel.findAll(companyId, productId);
   },
 
   async get(companyId, bomId) {
@@ -24,5 +24,27 @@ export const BOMService = {
     const deleted = await BOMModel.delete(companyId, bomId);
     if (!deleted) throw new Error('BOM not found');
     return true;
+  }
+  ,
+
+  // Dynamic BOM rules service
+  async listRules(companyId, productId) {
+    return await BOMModel.findRules(companyId, productId);
+  },
+
+  async getRule(companyId, ruleId) {
+    return await BOMModel.findRuleById(companyId, ruleId);
+  },
+
+  async createRule(companyId, data) {
+    return await BOMModel.insertRule(companyId, data);
+  },
+
+  async updateRule(companyId, ruleId, data) {
+    return await BOMModel.updateRule(companyId, ruleId, data);
+  },
+
+  async deleteRule(companyId, ruleId) {
+    return await BOMModel.deleteRule(companyId, ruleId);
   }
 };

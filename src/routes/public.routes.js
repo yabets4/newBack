@@ -48,13 +48,20 @@ r.post('/auth/login', async (req, res) => {
 
     console.log(user);
     console.log(user.user_id);
-    
+
+    // Fetch granular permissions for the user's role
+    // Dynamic import to avoid circular dependency issues if any, or just standard import likely fine
+    // using dynamic import just in case, or we can add top-level import.
+    // simpler: assume top-level import is added.
+    const { getPermissionsByRoles } = await import('../modules/system/role/role.service.js');
+    const permissions = await getPermissionsByRoles([user.role], user.company_id);
 
     // Create JWT with correct user_id
     const token = jwt.sign(
       {
         sub: user.user_id,       // ✅ now matches users.user_id
         roles: [user.role],
+        permissions,             // ✅ Added granular permissions
         company_id: user.company_id,
         gps,
       },
@@ -69,10 +76,50 @@ r.post('/auth/login', async (req, res) => {
       [user.email, user.role, gps.lat, gps.lon]
     );
 
-    return ok(res, { token });
+    // Check if password is the default "0000"
+    let require_password_change = false;
+    if (password === '0000') {
+      require_password_change = true;
+    }
+
+    return ok(res, { token, require_password_change });
   } catch (err) {
     console.error('Login error:', err);
     return badRequest(res, 'Login failed');
+  }
+});
+
+r.post('/auth/change-password', async (req, res) => {
+  const { email, old_password, new_password } = req.body || {};
+  if (!email || !old_password || !new_password) {
+    return badRequest(res, 'email, old_password, and new_password are required');
+  }
+
+  try {
+    // 1. Verify old credentials
+    const result = await pool.query(
+      `SELECT up.password, up.user_id, up.company_id
+       FROM user_profiles up
+       WHERE up.email = $1 LIMIT 1`,
+      [email]
+    );
+    const user = result.rows[0];
+
+    if (!user) return unauthorized(res, 'User not found');
+    if (user.password !== old_password) return unauthorized(res, 'Invalid old password');
+
+    // 2. Update to new password
+    await pool.query(
+      `UPDATE user_profiles 
+       SET password = $1, updated_at = NOW() 
+       WHERE company_id = $2 AND user_id = $3`,
+      [new_password, user.company_id, user.user_id]
+    );
+
+    return ok(res, { message: 'Password updated successfully' });
+  } catch (err) {
+    console.error('Change password error:', err);
+    return badRequest(res, 'Failed to update password');
   }
 });
 
@@ -110,18 +157,25 @@ r.post('/login', async (req, res) => {
     );
 
     // Convert to JS array (empty array if no roles)
-        
+
     let userRoles = rowResults.rows[0]?.roles || [];
     if (userRoles.length === 0 && admin.role) {
       userRoles = [admin.role];
     }
 
+    // Fetch granular permissions
+    const { getPermissionsByRoles } = await import('../modules/system/role/role.service.js');
+    // Admin roles might be system-wide, so companyId might be null or specific?
+    // For now passing null as companyId if it's a super admin, but let's check.
+    // Admin table doesn't seem to have company_id. Assuming global or handle carefully.
+    const permissions = await getPermissionsByRoles(userRoles, null); // Null company for system admins?
 
     // Create JWT including roles
     const token = jwt.sign(
       {
         sub: admin.user_id,
         roles: userRoles,
+        permissions,
         gps,
       },
       appConfig.jwtSecret,
@@ -236,5 +290,38 @@ r.post('/employee/login', async (req, res) => {
   }
 });
 
+
+// ========== SMS Custom App Public Listener ==========
+
+r.get('/sms/queue', async (req, res) => {
+  const apiKey = req.headers['x-api-key'];
+  if (!apiKey) return unauthorized(res, 'X-Api-Key header required');
+
+  try {
+    const { default: smsService } = await import('../modules/notifications/sms/sms.service.js');
+    const messages = await smsService.getPendingMessagesByApiKey(apiKey);
+    return ok(res, { success: true, messages });
+  } catch (err) {
+    console.error('Public SMS queue error:', err);
+    return unauthorized(res, err.message);
+  }
+});
+
+r.post('/sms/status', async (req, res) => {
+  const apiKey = req.headers['x-api-key'];
+  const { messageId, status, errorMessage } = req.body || {};
+
+  if (!apiKey) return unauthorized(res, 'X-Api-Key header required');
+  if (!messageId || !status) return badRequest(res, 'messageId and status required');
+
+  try {
+    const { default: smsService } = await import('../modules/notifications/sms/sms.service.js');
+    await smsService.updateMessageStatusByApiKey(apiKey, messageId, status, errorMessage);
+    return ok(res, { success: true });
+  } catch (err) {
+    console.error('Public SMS status error:', err);
+    return unauthorized(res, err.message);
+  }
+});
 
 export default r;

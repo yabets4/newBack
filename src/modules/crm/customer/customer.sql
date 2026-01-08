@@ -27,6 +27,8 @@ CREATE TABLE IF NOT EXISTS customer_profiles (
     updated_at TIMESTAMP DEFAULT NOW(),
     gender VARCHAR(20),
     birthday DATE,
+    latitude DECIMAL(10, 8),
+    longitude DECIMAL(11, 8),
     FOREIGN KEY (company_id, customer_id)
       REFERENCES customers(company_id, customer_id)
       ON DELETE CASCADE

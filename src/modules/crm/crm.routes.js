@@ -9,11 +9,11 @@ import Report from './report/report.route.js'
 import Location from './locations/locations.routes.js'
 import { authenticateJWT } from '../../middleware/jwt.middleware.js';
 import { requestCounter } from '../../middleware/requestCounter.middleware.js';
-import {CheckCompanyStatus} from '../../middleware/checkTierLimit.middleware.js';
+import { CheckCompanyStatus } from '../../middleware/checkTierLimit.middleware.js';
 
 
-const r = Router(); 
-r.use(auth(true), authenticateJWT, CheckCompanyStatus, requestCounter );
+const r = Router();
+r.use(CheckCompanyStatus, requestCounter);
 r.use('/orders', Order)
 
 r.use('/customers', customer)

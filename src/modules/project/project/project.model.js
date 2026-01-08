@@ -320,7 +320,9 @@ export const ProjectModel = {
 			items: itemsByOrder[order.order_id] || []
 		}));
 
-		// Return combined array following the requested order
+
+		console.log("employees= ",employees,"locations= ",locations,"ordersWithItems= ",ordersWithItems);
+		
 		return [employees, locations, ordersWithItems];
 	}
 };

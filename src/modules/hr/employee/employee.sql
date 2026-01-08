@@ -41,12 +41,17 @@ CREATE TABLE employee_employment_details (
         contract_type VARCHAR(50),
         reports_to VARCHAR(20),
         deputy_manager VARCHAR(20),
+        department_id VARCHAR(32),
+        job_id VARCHAR(32),
+        job_level_id VARCHAR(32),
+        job_level_name VARCHAR(255),
         created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
         updated_at TIMESTAMP,
         FOREIGN KEY (company_id, employee_id)
             REFERENCES employees(company_id, employee_id)
             ON DELETE CASCADE
 );
+
 
 
 contract_type
@@ -114,9 +119,7 @@ CREATE TABLE employee_emergency_contacts (
             ON DELETE CASCADE
 );
 
--- =================================
--- 8. Skills & Certifications (multiple)
--- =================================
+
 CREATE TABLE employee_skills_certifications (
         id BIGSERIAL PRIMARY KEY,
         company_id VARCHAR(20) NOT NULL,

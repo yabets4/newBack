@@ -51,8 +51,8 @@ export default class EmployeeController {
     try {
       const companyId = req.auth.companyID;
       // Debug: log incoming request body/files to diagnose attachment issues
-      try { console.debug('[EmployeeController.getAll] req.files:', req.files || null); } catch (e) {}
-      try { console.debug('[EmployeeController.getAll] req.body keys:', req.body ? Object.keys(req.body) : null); } catch (e) {}
+      try { console.debug('[EmployeeController.getAll] req.files:', req.files || null); } catch (e) { }
+      try { console.debug('[EmployeeController.getAll] req.body keys:', req.body ? Object.keys(req.body) : null); } catch (e) { }
 
       const employees = await service.getAllEmployees(companyId);
       // Normalize attachment paths for each employee record so front-end receives public URLs
@@ -70,16 +70,21 @@ export default class EmployeeController {
   static async getById(req, res, next) {
     try {
       const companyId = req.auth.companyID;
+      console.log(companyId);
+
+      if (!companyId) return res.status(400).json({ success: false, message: 'Company ID is required' });
       let employee = await service.getEmployeeById(companyId, req.params.id);
       if (!employee) return notFound(res, 'Employee not found');
       employee = normalizeEmployeeRecord(employee);
       // Debug: show normalized employee attachments returned to client
-      try { console.debug('[EmployeeController.getById] returning employee attachments:', {
-        profile_photo_url: employee.profile_photo_url,
-        national_id_attachment: employee.national_id_attachment,
-        certifications: employee.certifications && employee.certifications.map(c => c.attachment),
-        emergency_contacts: employee.emergency_contacts && employee.emergency_contacts.map(c => c.attachment || c.national_id_attachment)
-      }); } catch (e) {}
+      try {
+        console.debug('[EmployeeController.getById] returning employee attachments:', {
+          profile_photo_url: employee.profile_photo_url,
+          national_id_attachment: employee.national_id_attachment,
+          certifications: employee.certifications && employee.certifications.map(c => c.attachment),
+          emergency_contacts: employee.emergency_contacts && employee.emergency_contacts.map(c => c.attachment || c.national_id_attachment)
+        });
+      } catch (e) { }
       return ok(res, employee);
     } catch (e) {
       next(e);
@@ -207,21 +212,25 @@ export default class EmployeeController {
       }
 
       // Debug: show the data object being saved (important: avoid logging huge binary buffers)
-      try { console.debug('[EmployeeController.create] saving employee data keys:', Object.keys(data)); } catch (e) {}
-      try { console.debug('[EmployeeController.create] sample attachment fields:', {
-        profile_photo_url: data.profile_photo_url,
-        national_id_attachment: data.national_id_attachment,
-        certifications: data.skills_certifications || data.certifications,
-        emergency_contacts: data.emergency_contacts
-      }); } catch (e) {}
+      try { console.debug('[EmployeeController.create] saving employee data keys:', Object.keys(data)); } catch (e) { }
+      try {
+        console.debug('[EmployeeController.create] sample attachment fields:', {
+          profile_photo_url: data.profile_photo_url,
+          national_id_attachment: data.national_id_attachment,
+          certifications: data.skills_certifications || data.certifications,
+          emergency_contacts: data.emergency_contacts
+        });
+      } catch (e) { }
 
       const newEmployee = await service.createEmployee(companyId, data);
       // Debug: newly created employee id / attachments
-      try { console.debug('[EmployeeController.create] created employee id:', newEmployee && newEmployee.id); } catch (e) {}
-      try { console.debug('[EmployeeController.create] created attachments:', {
-        profile_photo_url: newEmployee && newEmployee.profile_photo_url,
-        national_id_attachment: newEmployee && newEmployee.national_id_attachment
-      }); } catch (e) {}
+      try { console.debug('[EmployeeController.create] created employee id:', newEmployee && newEmployee.id); } catch (e) { }
+      try {
+        console.debug('[EmployeeController.create] created attachments:', {
+          profile_photo_url: newEmployee && newEmployee.profile_photo_url,
+          national_id_attachment: newEmployee && newEmployee.national_id_attachment
+        });
+      } catch (e) { }
       return created(res, newEmployee);
     } catch (e) {
       next(e);
@@ -300,22 +309,26 @@ export default class EmployeeController {
       }
 
       // Debug: show the data object about to be used for update
-      try { console.debug('[EmployeeController.update] updating employee id:', req.params.id, 'with keys:', Object.keys(data)); } catch (e) {}
-      try { console.debug('[EmployeeController.update] sample attachment fields:', {
-        profile_photo_url: data.profile_photo_url,
-        national_id_attachment: data.national_id_attachment,
-        certifications: data.skills_certifications || data.certifications,
-        emergency_contacts: data.emergency_contacts
-      }); } catch (e) {}
+      try { console.debug('[EmployeeController.update] updating employee id:', req.params.id, 'with keys:', Object.keys(data)); } catch (e) { }
+      try {
+        console.debug('[EmployeeController.update] sample attachment fields:', {
+          profile_photo_url: data.profile_photo_url,
+          national_id_attachment: data.national_id_attachment,
+          certifications: data.skills_certifications || data.certifications,
+          emergency_contacts: data.emergency_contacts
+        });
+      } catch (e) { }
 
       const employee = await service.updateEmployee(companyId, req.params.id, data);
       if (!employee) return notFound(res, 'Employee not found');
       // Debug: show updated record attachments returned by service
-      try { console.debug('[EmployeeController.update] updated attachments:', {
-        profile_photo_url: employee && employee.profile_photo_url,
-        national_id_attachment: employee && employee.national_id_attachment,
-        certifications: employee && employee.certifications && employee.certifications.map(c => c.attachment),
-      }); } catch (e) {}
+      try {
+        console.debug('[EmployeeController.update] updated attachments:', {
+          profile_photo_url: employee && employee.profile_photo_url,
+          national_id_attachment: employee && employee.national_id_attachment,
+          certifications: employee && employee.certifications && employee.certifications.map(c => c.attachment),
+        });
+      } catch (e) { }
       return ok(res, employee);
     } catch (e) {
       next(e);
@@ -330,6 +343,32 @@ export default class EmployeeController {
       if (!success) return notFound(res, 'Employee not found');
       return ok(res, { deleted: true });
     } catch (e) {
+      next(e);
+    }
+  }
+
+  static async getInfo(req, res, next) {
+    try {
+      const companyId = req.auth.companyID;
+      const info = await service.getInfo(companyId);
+      return ok(res, info);
+    } catch (e) {
+      next(e);
+    }
+  }
+
+  // POST /employees/:id/promote
+  static async promote(req, res, next) {
+    try {
+      const companyId = req.auth.companyID;
+      const employeeId = req.params.id;
+      const result = await service.promoteEmployee(companyId, employeeId);
+      return ok(res, result);
+    } catch (e) {
+      // If specific business logic error (like no next level), return 400
+      if (e.message && (e.message.includes('No further promotion') || e.message.includes('assign a level'))) {
+        return res.status(400).json({ success: false, message: e.message });
+      }
       next(e);
     }
   }

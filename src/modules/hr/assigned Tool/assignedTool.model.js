@@ -1,79 +1,72 @@
 import pool from '../../../loaders/db.loader.js';
-import { tableName } from '../../../utils/prefix.utils.js';
 
-export default class AssignedToolModel {
-  // --- Get all assigned tools ---
-  async findAll(prefix, { limit = 50, offset = 0 } = {}) {
-    const { rows } = await pool.query(
-      `SELECT * FROM ${tableName('assigned_tools', prefix)} ORDER BY id ASC LIMIT $1 OFFSET $2`,
-      [limit, offset]
+const AssignedToolModel = {
+  async create(companyId, payload) {
+    const res = await pool.query(
+      `INSERT INTO assigned_tools
+       (company_id, asset_id, asset_name, asset_type, employee_id, employee_name, assignment_date, return_date, status, notes, created_at, updated_at)
+       VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9,$10,NOW(),NOW()) RETURNING *`,
+      [
+        companyId,
+        payload.asset_id || null,
+        payload.asset_name || null,
+        payload.asset_type || null,
+        payload.employee_id || null,
+        payload.employee_name || null,
+        payload.assignment_date || null,
+        payload.return_date || null,
+        payload.status || 'assigned',
+        payload.notes || null,
+      ]
     );
-    return rows;
-  }
+    return res.rows[0] || null;
+  },
 
-  // --- Get assigned tool by ID ---
-  async findById(prefix, id) {
-    const toolsTable = tableName('assigned_tools', prefix);
-    const { rows } = await pool.query(
-      `SELECT * FROM ${toolsTable} WHERE id = $1`,
-      [id]
+  async update(companyId, id, payload) {
+    const res = await pool.query(
+      `UPDATE assigned_tools SET
+         asset_id = $1, asset_name = $2, asset_type = $3, employee_id = $4, employee_name = $5,
+         assignment_date = $6, return_date = $7, status = $8, notes = $9, updated_at = NOW()
+       WHERE company_id = $10 AND id = $11 RETURNING *`,
+      [
+        payload.asset_id || null,
+        payload.asset_name || null,
+        payload.asset_type || null,
+        payload.employee_id || null,
+        payload.employee_name || null,
+        payload.assignment_date || null,
+        payload.return_date || null,
+        payload.status || 'assigned',
+        payload.notes || null,
+        companyId,
+        id,
+      ]
     );
-    return rows[0] || null;
-  }
+    return res.rows[0] || null;
+  },
 
-  // --- Create new assigned tool record ---
-  async create(prefix, data) {
-    const toolsTable = tableName('assigned_tools', prefix);
+  async delete(companyId, id) {
+    const res = await pool.query(`DELETE FROM assigned_tools WHERE company_id = $1 AND id = $2 RETURNING id`, [companyId, id]);
+    return res.rows[0] || null;
+  },
 
-    const { employee_id, asset_name, assignment_date, return_date, status, notes } = data;
+  async getById(companyId, id) {
+    const res = await pool.query(`SELECT * FROM assigned_tools WHERE company_id = $1 AND id = $2 LIMIT 1`, [companyId, id]);
+    return res.rows[0] || null;
+  },
 
-    const { rows } = await pool.query(
-      `INSERT INTO ${toolsTable} 
-      (employee_id, asset_name, assignment_date, return_date, status, notes)
-      VALUES ($1,$2,$3,$4,$5,$6)
-      RETURNING *`,
-      [employee_id, asset_name, assignment_date, return_date || null, status || 'Assigned', notes || null]
-    );
-
-    return rows[0];
-  }
-
-  // --- Update assigned tool record ---
-  async update(prefix, id, data) {
-    const toolsTable = tableName('assigned_tools', prefix);
-
-    const fields = [];
-    const values = [];
-    let idx = 1;
-
-    for (const [key, value] of Object.entries(data)) {
-      fields.push(`${key} = $${idx}`);
-      values.push(value);
-      idx++;
+  async list(companyId, filters = {}) {
+    // basic listing with optional employee filter
+    let q = `SELECT * FROM assigned_tools WHERE company_id = $1`;
+    const params = [companyId];
+    if (filters.employee_id) {
+      params.push(filters.employee_id);
+      q += ` AND employee_id = $${params.length}`;
     }
-
-    if (!fields.length) return null;
-
-    values.push(id);
-
-    const { rows } = await pool.query(
-      `UPDATE ${toolsTable}
-       SET ${fields.join(', ')}, updated_at = NOW()
-       WHERE id = $${idx}
-       RETURNING *`,
-      values
-    );
-
-    return rows[0] || null;
+    q += ` ORDER BY created_at DESC`;
+    const res = await pool.query(q, params);
+    return res.rows || [];
   }
+};
 
-  // --- Delete assigned tool record ---
-  async delete(prefix, id) {
-    const toolsTable = tableName('assigned_tools', prefix);
-    const { rowCount } = await pool.query(
-      `DELETE FROM ${toolsTable} WHERE id = $1`,
-      [id]
-    );
-    return rowCount > 0;
-  }
-}
+export default AssignedToolModel;

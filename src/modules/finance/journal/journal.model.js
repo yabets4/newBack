@@ -25,10 +25,11 @@ export const JournalModel = {
     return entry;
   },
 
-  async insert(companyId, data) {
-    const client = await pool.connect();
+  async insert(companyId, data, externalClient = null) {
+    const client = externalClient || await pool.connect();
+    const shouldRelease = !externalClient;
     try {
-      await client.query('BEGIN');
+      if (shouldRelease) await client.query('BEGIN');
 
       // Model-level validation: ensure lines balance
       if (!Array.isArray(data.lines) || data.lines.length === 0) {
@@ -48,9 +49,9 @@ export const JournalModel = {
       const journal_id = `JNL-${String(nextNum).padStart(6, '0')}`;
 
       await client.query(
-        `INSERT INTO journal_entries (company_id, journal_id, journal_number, journal_date, description, status, created_at, updated_at)
-         VALUES ($1,$2,$3,$4,$5,$6,NOW(),NOW())`,
-        [companyId, journal_id, data.journal_number || null, data.journal_date || null, data.description || null, data.status || 'Draft']
+        `INSERT INTO journal_entries (company_id, journal_id, journal_number, journal_date, description, status, source_module, source_ref_id, created_at, updated_at)
+         VALUES ($1,$2,$3,$4,$5,$6,$7,$8,NOW(),NOW())`,
+        [companyId, journal_id, data.journal_number || null, data.journal_date || null, data.description || null, data.status || 'Draft', data.source_module || null, data.source_ref_id || null]
       );
 
       // Insert lines
@@ -65,7 +66,8 @@ export const JournalModel = {
         }
       }
 
-      await client.query('COMMIT');
+
+      if (shouldRelease) await client.query('COMMIT');
       return await this.findById(companyId, journal_id);
     } catch (err) {
       await client.query('ROLLBACK');

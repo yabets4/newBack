@@ -1,10 +1,11 @@
 import pool from '../../../loaders/db.loader.js';
 
 export const ApModel = {
-  async insertInvoice(companyId, data) {
-    const client = await pool.connect();
+  async insertInvoice(companyId, data, externalClient = null) {
+    const client = externalClient || await pool.connect();
+    const shouldRelease = !externalClient;
     try {
-      await client.query('BEGIN');
+      if (shouldRelease) await client.query('BEGIN');
 
       // Generate invoice id
       const nextRes = await client.query(
@@ -30,23 +31,24 @@ export const ApModel = {
           );
         }
       }
-        // Persist attachments if provided (array of { file_name, file_url, storage_name })
-        if (Array.isArray(data.attachments) && data.attachments.length > 0) {
-          for (const a of data.attachments) {
-            await client.query(
-              `INSERT INTO ap_invoice_attachments (company_id, invoice_id, file_name, file_url, storage_name, created_at) VALUES ($1,$2,$3,$4,$5,NOW())`,
-              [companyId, invoice_id, a.file_name || a.originalname || null, a.file_url || a.path || a.url || null, a.storage_name || a.filename || null]
-            );
-          }
+      // Persist attachments if provided (array of { file_name, file_url, storage_name })
+      if (Array.isArray(data.attachments) && data.attachments.length > 0) {
+        for (const a of data.attachments) {
+          await client.query(
+            `INSERT INTO ap_invoice_attachments (company_id, invoice_id, file_name, file_url, storage_name, created_at) VALUES ($1,$2,$3,$4,$5,NOW())`,
+            [companyId, invoice_id, a.file_name || a.originalname || null, a.file_url || a.path || a.url || null, a.storage_name || a.filename || null]
+          );
         }
+      }
 
-      await client.query('COMMIT');
+
+      if (shouldRelease) await client.query('COMMIT');
       return await this.findById(companyId, invoice_id);
     } catch (err) {
-      await client.query('ROLLBACK');
+      if (shouldRelease) await client.query('ROLLBACK');
       throw err;
     } finally {
-      client.release();
+      if (shouldRelease) client.release();
     }
   },
 
@@ -61,8 +63,8 @@ export const ApModel = {
     if (!invoice) return null;
     const linesRes = await pool.query(`SELECT * FROM ap_invoice_lines WHERE company_id = $1 AND invoice_id = $2 ORDER BY line_number`, [companyId, invoiceId]);
     invoice.lines = linesRes.rows;
-      const attachRes = await pool.query(`SELECT id, file_name, file_url, storage_name, created_at FROM ap_invoice_attachments WHERE company_id = $1 AND invoice_id = $2 ORDER BY created_at`, [companyId, invoiceId]);
-      invoice.attachments = attachRes.rows;
+    const attachRes = await pool.query(`SELECT id, file_name, file_url, storage_name, created_at FROM ap_invoice_attachments WHERE company_id = $1 AND invoice_id = $2 ORDER BY created_at`, [companyId, invoiceId]);
+    invoice.attachments = attachRes.rows;
     const discRes = await pool.query(`SELECT * FROM ap_discrepancies WHERE company_id = $1 AND invoice_id = $2 ORDER BY created_at`, [companyId, invoiceId]);
     invoice.discrepancies = discRes.rows;
     return invoice;

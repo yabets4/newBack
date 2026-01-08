@@ -94,5 +94,52 @@ export const DepartmentController = {
       const ok = await DepartmentService.removeJob(companyID, departmentId, jobId);
       res.json({ success: true, removed: ok });
     } catch (err) { next(err); }
+  },
+
+  // Job Levels
+  async createJobLevel(req, res, next) {
+    try {
+      const { companyID } = req.auth;
+      const { departmentId, jobId } = req.params;
+      const created = await DepartmentService.createJobLevel(companyID, departmentId, jobId, req.body);
+      res.json({ success: true, data: created });
+    } catch (err) { next(err); }
+  },
+
+  async listJobLevels(req, res, next) {
+    try {
+      const { companyID } = req.auth;
+      const { departmentId, jobId } = req.params;
+      const list = await DepartmentService.listJobLevels(companyID, departmentId, jobId);
+      res.json({ success: true, data: list });
+    } catch (err) { next(err); }
+  },
+
+  async getJobLevel(req, res, next) {
+    try {
+      const { companyID } = req.auth;
+      const { departmentId, jobId, levelId } = req.params;
+      const item = await DepartmentService.getJobLevel(companyID, departmentId, jobId, levelId);
+      if (!item) return res.status(404).json({ success: false, message: 'Level not found' });
+      res.json({ success: true, data: item });
+    } catch (err) { next(err); }
+  },
+
+  async updateJobLevel(req, res, next) {
+    try {
+      const { companyID } = req.auth;
+      const { departmentId, jobId, levelId } = req.params;
+      const updated = await DepartmentService.updateJobLevel(companyID, departmentId, jobId, levelId, req.body);
+      res.json({ success: true, data: updated });
+    } catch (err) { next(err); }
+  },
+
+  async removeJobLevel(req, res, next) {
+    try {
+      const { companyID } = req.auth;
+      const { departmentId, jobId, levelId } = req.params;
+      const ok = await DepartmentService.removeJobLevel(companyID, departmentId, jobId, levelId);
+      res.json({ success: true, removed: ok });
+    } catch (err) { next(err); }
   }
 };

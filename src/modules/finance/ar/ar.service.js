@@ -1,3 +1,4 @@
+import TransactionManager from '../transaction.manager.js';
 import ArModel from './ar.model.js';
 
 export const ArService = {
@@ -18,9 +19,10 @@ export const ArService = {
 
     const total = payload.lines.reduce((s, l) => s + (Number(l.line_amount) || 0), 0);
     payload.total_amount = total;
+    payload.status = 'Posted'; // GOVERNANCE: auto-post
 
-    const created = await ArModel.insertInvoice(companyId, payload);
-    return created;
+    const result = await TransactionManager.handleEvent(companyId, 'AR_INVOICE_CREATE', payload, 'system');
+    return result.businessRecord;
   },
 
   async listInvoices(companyId) {
@@ -36,6 +38,18 @@ export const ArService = {
     const added = await ArModel.addPayment(companyId, invoiceId, payload);
     // Optionally update invoice status if fully paid - not computing outstanding here
     return added;
+  },
+
+  async reverseInvoice(companyId, invoiceId, reason, user) {
+    return await TransactionManager.reverseTransaction(companyId, 'AR', invoiceId, reason, user);
+  },
+
+  async updateInvoice(companyId, invoiceId, payload) {
+    throw new Error('Direct updates to posted invoices are disabled. Use reversal and recreation.');
+  },
+
+  async deleteInvoice(companyId, invoiceId) {
+    throw new Error('Deletion of posted invoices is disabled. Use reversal.');
   }
 };
 

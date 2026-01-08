@@ -1,8 +1,8 @@
 import DesignModel from './design.model.js';
 
 export const DesignService = {
-  async list(companyId) {
-    return await DesignModel.findAll(companyId);
+  async list(companyId, productId = null) {
+    return await DesignModel.findAll(companyId, productId);
   },
 
   async get(companyId, id) {

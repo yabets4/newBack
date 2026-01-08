@@ -9,18 +9,25 @@ import {
 } from './coa.controller.js';
 import { CheckTierLimit } from '../../../middleware/checkTierLimit.middleware.js';
 
+import permission from "../../../middleware/permission.middleware.js";
+
 const r = Router();
 
+const canRead = permission(['finance.coa.read.all', 'finance.read.all']);
+const canCreate = permission(['finance.coa.create', 'finance.create']);
+const canUpdate = permission(['finance.coa.update', 'finance.update']);
+const canDelete = permission(['finance.coa.delete', 'finance.delete']);
+
 // List & tree
-r.get('/', getAccounts);
-r.get('/tree', getAccountTree);
+r.get('/', canRead, getAccounts);
+r.get('/tree', canRead, getAccountTree);
 
 // Single
-r.get('/:id', getAccount);
+r.get('/:id', canRead, getAccount);
 
 // Create / Update / Delete
-r.post('/', CheckTierLimit('accounts'), createAccount);
-r.put('/:id', updateAccount);
-r.delete('/:id', deleteAccount);
+r.post('/', canCreate, CheckTierLimit('accounts'), createAccount);
+r.put('/:id', canUpdate, updateAccount);
+r.delete('/:id', canDelete, deleteAccount);
 
 export default r;

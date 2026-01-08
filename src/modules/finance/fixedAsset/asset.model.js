@@ -15,9 +15,9 @@ export const AssetsModel = {
     return result.rows;
   },
   async findAllLocation(companyId) {
-  // --- Fetch locations ---
-  const locationsResult = await pool.query(
-    `
+    // --- Fetch locations ---
+    const locationsResult = await pool.query(
+      `
     SELECT 
       l.id,
 
@@ -31,10 +31,10 @@ export const AssetsModel = {
     WHERE l.company_id = $1
     ORDER BY l.created_at DESC
     `,
-    [companyId]
-  );
-  return locationsResult.rows;
-},
+      [companyId]
+    );
+    return locationsResult.rows;
+  },
 
   async findById(companyId, assetId) {
     const result = await pool.query(
@@ -105,10 +105,11 @@ export const AssetsModel = {
     return result.rows;
   },
 
-  async insert(companyId, data) {
-    const client = await pool.connect();
+  async insert(companyId, data, externalClient = null) {
+    const client = externalClient || await pool.connect();
+    const shouldRelease = !externalClient;
     try {
-      await client.query("BEGIN");
+      if (shouldRelease) await client.query("BEGIN");
 
       // Generate next asset number
       const nextNumRes = await client.query(
@@ -136,7 +137,7 @@ export const AssetsModel = {
           data.category,
           data.serial_number,
           data.location,
-          data.status,
+          data.status || 'Active', // Default status
           data.assigned_to || null,
           data.acquisition_date,
           data.acquisition_value,
@@ -147,13 +148,14 @@ export const AssetsModel = {
         ]
       );
 
-      await client.query("COMMIT");
+
+      if (shouldRelease) await client.query("COMMIT");
       return res.rows[0];
     } catch (err) {
-      await client.query("ROLLBACK");
+      if (shouldRelease) await client.query("ROLLBACK");
       throw err;
     } finally {
-      client.release();
+      if (shouldRelease) client.release();
     }
   },
 
@@ -173,7 +175,7 @@ export const AssetsModel = {
     const result = await pool.query(
       `UPDATE assets
        SET ${fields.join(", ")}
-       WHERE company_id = $${idx} AND asset_id = $${idx+1}
+       WHERE company_id = $${idx} AND asset_id = $${idx + 1}
        RETURNING *`,
       values
     );
@@ -189,5 +191,10 @@ export const AssetsModel = {
       [companyId, assetId]
     );
     return result.rows[0];
+  },
+
+  async updateStatus(companyId, assetId, status) {
+    const res = await pool.query(`UPDATE assets SET status = $3, updated_at = NOW() WHERE company_id = $1 AND asset_id = $2 RETURNING *`, [companyId, assetId, status]);
+    return res.rows[0];
   }
 };

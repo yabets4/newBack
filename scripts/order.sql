@@ -17,12 +17,6 @@ CREATE TABLE orders (
     FOREIGN KEY (company_id, quote_id) REFERENCES quotes(company_id, quote_id) ON DELETE CASCADE
 );
 
--- Order Items table
-ALTER TABLE orders ADD COLUMN delivery_date VARCHAR(500);
-ALTER TABLE companies ADD COLUMN next_product_number VARCHAR(500);
-ALTER TABLE companies ADD COLUMN next_design_number VARCHAR(500);
-
-
 CREATE TABLE order_items (
     id BIGSERIAL PRIMARY KEY,
     company_id VARCHAR(20) NOT NULL,

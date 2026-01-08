@@ -13,6 +13,17 @@ export async function getProducts(req, res) {
 	}
 }
 
+export async function getCustomizableProducts(req, res) {
+	try {
+		const { companyID } = req.auth;
+		const products = await ProductService.list(companyID);
+		const customizable = (products || []).filter(p => p.product_type === 'customizable' || p.product_type === 'configurable' || p.product_type === 'customisable');
+		return ok(res, customizable);
+	} catch (err) {
+		console.error(err);
+		return badRequest(res, err.message);
+	}
+}
 export async function getProduct(req, res) {
 	try {
 		const { companyID } = req.auth;

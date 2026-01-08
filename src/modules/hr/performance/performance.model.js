@@ -13,26 +13,37 @@ export const PerformanceModel = {
         review_id = `PR-${uuidv4()}`;
       }
 
-      await client.query(
-        `INSERT INTO performance_reviews (
-          company_id, review_id, employee_id, reviewer_id, review_date, period_start, period_end, score, summary, details
-        ) VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9,$10)`,
-        [
-          companyId,
-          review_id,
-          data.employee_id,
-          data.reviewer_id || null,
-          data.review_date || null,
-          data.period_start || null,
-          data.period_end || null,
-          data.score || null,
-          data.summary || null,
-          data.details || null
-        ]
-      );
+      const insertQ = `INSERT INTO performance_reviews (
+        company_id, review_id, employee_id, employee_name, reviewer_id, reviewer_name, review_date, period_start, period_end,
+        ratings, goals, development_plan, overall_rating, overall_comments, attachments, summary, details
+      ) VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9,$10,$11,$12,$13,$14,$15,$16,$17) RETURNING *`;
+
+      const ratingsVal = data.ratings ? JSON.stringify(data.ratings) : null;
+      const goalsVal = data.goals ? JSON.stringify(data.goals) : null;
+      const attachmentsVal = data.attachments ? JSON.stringify(data.attachments) : null;
+
+      const { rows } = await client.query(insertQ, [
+        companyId,
+        review_id,
+        data.employee_id,
+        data.employee_name || null,
+        data.reviewer_id || null,
+        data.reviewer_name || null,
+        data.review_date || null,
+        data.period_start || null,
+        data.period_end || null,
+        ratingsVal,
+        goalsVal,
+        data.development_plan || data.developmentPlan || null,
+        data.overall_rating ?? data.overallRating ?? null,
+        data.overall_comments ?? data.overallComments ?? null,
+        attachmentsVal,
+        data.summary || null,
+        data.details || null
+      ]);
 
       await client.query('COMMIT');
-      return { review_id, ...data };
+      return rows[0];
     } catch (err) {
       await client.query('ROLLBACK');
       console.error('PerformanceModel.createReview error', err);
@@ -44,11 +55,11 @@ export const PerformanceModel = {
 
   async findReviews(companyId, opts = {}) {
     const { employee_id, start_date, end_date, limit = 100, offset = 0 } = opts;
-    const clauses = ['company_id = $1'];
+    const clauses = ['r.company_id = $1'];
     const params = [companyId];
     let idx = 2;
     if (employee_id) {
-      clauses.push(`employee_id = $${idx++}`);
+      clauses.push(`r.employee_id = $${idx++}`);
       params.push(employee_id);
     }
     if (start_date) {
@@ -61,7 +72,13 @@ export const PerformanceModel = {
     }
 
     const where = clauses.length ? `WHERE ${clauses.join(' AND ')}` : '';
-    const q = `SELECT * FROM performance_reviews ${where} ORDER BY review_date DESC, created_at DESC LIMIT $${idx++} OFFSET $${idx++}`;
+    const q = `
+      SELECT r.* 
+      FROM performance_reviews r
+      ${where} 
+      ORDER BY r.review_date DESC, r.created_at DESC 
+      LIMIT $${idx++} OFFSET $${idx++}
+    `;
     params.push(limit);
     params.push(offset);
     const { rows } = await pool.query(q, params);
@@ -70,7 +87,9 @@ export const PerformanceModel = {
 
   async findReviewById(companyId, reviewId) {
     const { rows } = await pool.query(
-      `SELECT * FROM performance_reviews WHERE company_id = $1 AND review_id = $2`,
+      `SELECT r.* 
+       FROM performance_reviews r
+       WHERE r.company_id = $1 AND r.review_id = $2`,
       [companyId, reviewId]
     );
     return rows[0] || null;
@@ -83,11 +102,22 @@ export const PerformanceModel = {
       const fields = [];
       const params = [companyId, reviewId];
       let idx = 3;
-      const allowed = ['employee_id','reviewer_id','review_date','period_start','period_end','score','summary','details'];
+      const allowed = ['employee_id', 'employee_name', 'reviewer_id', 'reviewer_name', 'review_date', 'period_start', 'period_end', 'ratings', 'goals', 'development_plan', 'overall_rating', 'overall_comments', 'attachments', 'summary', 'details'];
       for (const k of allowed) {
         if (k in data) {
           fields.push(`${k} = $${idx++}`);
-          params.push(data[k]);
+          // stringify JSON fields
+          if (k === 'ratings' || k === 'goals' || k === 'attachments') {
+            params.push(data[k] != null ? JSON.stringify(data[k]) : null);
+          } else if (k === 'development_plan' && data.developmentPlan !== undefined) {
+            params.push(data.developmentPlan);
+          } else if (k === 'overall_rating' && data.overallRating !== undefined) {
+            params.push(data.overallRating);
+          } else if (k === 'overall_comments' && data.overallComments !== undefined) {
+            params.push(data.overallComments);
+          } else {
+            params.push(data[k]);
+          }
         }
       }
       if (fields.length === 0) return null;
@@ -151,7 +181,7 @@ export const PerformanceModel = {
 
   async findFeedback(companyId, opts = {}) {
     const { employee_id, limit = 100, offset = 0 } = opts;
-    const clauses = ['company_id = $1'];
+    const clauses = ['f.company_id = $1'];
     const params = [companyId];
     let idx = 2;
     if (employee_id) {
@@ -160,7 +190,17 @@ export const PerformanceModel = {
       idx++;
     }
     const where = clauses.length ? `WHERE ${clauses.join(' AND ')}` : '';
-    const q = `SELECT * FROM performance_feedback ${where} ORDER BY date DESC, created_at DESC LIMIT $${idx++} OFFSET $${idx++}`;
+    const q = `
+      SELECT f.*, 
+             e1.name as from_employee_name, 
+             e2.name as to_employee_name
+      FROM performance_feedback f
+      LEFT JOIN employees e1 ON f.company_id = e1.company_id AND f.from_employee_id = e1.employee_id
+      LEFT JOIN employees e2 ON f.company_id = e2.company_id AND f.to_employee_id = e2.employee_id
+      ${where} 
+      ORDER BY f.date DESC, f.created_at DESC 
+      LIMIT $${idx++} OFFSET $${idx++}
+    `;
     params.push(limit);
     params.push(offset);
     const { rows } = await pool.query(q, params);
@@ -184,15 +224,26 @@ export const PerformanceModel = {
   },
 
   async dashboardSummary(companyId) {
-    // Provide simple aggregates: total reviews, average score, feedback counts
+    // Provide aggregates: total reviews, average score, feedback counts, and reviews due soon
     const { rows } = await pool.query(
       `SELECT
-         (SELECT COUNT(*) FROM performance_reviews WHERE company_id = $1) AS total_reviews,
-         (SELECT AVG(score) FROM performance_reviews WHERE company_id = $1) AS avg_score,
-         (SELECT COUNT(*) FROM performance_feedback WHERE company_id = $1) AS total_feedback
+         (SELECT COALESCE(COUNT(*), 0) FROM performance_reviews WHERE company_id = $1) AS total_reviews,
+         (SELECT ROUND(COALESCE(AVG(overall_rating), 0), 2) FROM performance_reviews WHERE company_id = $1) AS avg_score,
+         (SELECT COALESCE(COUNT(*), 0) FROM performance_feedback WHERE company_id = $1) AS total_feedback,
+         (
+           SELECT COUNT(*)
+           FROM employee_employment_details
+           WHERE company_id = $1
+             AND (
+               -- Check if anniversary is within the next 30 days
+               (date_part('month', hire_date), date_part('day', hire_date)) >= (date_part('month', CURRENT_DATE), date_part('day', CURRENT_DATE))
+               AND
+               (hire_date + (date_part('year', CURRENT_DATE) - date_part('year', hire_date)) * interval '1 year') <= (CURRENT_DATE + interval '30 days')
+             )
+         ) AS reviews_due_soon
        `,
       [companyId]
     );
-    return rows[0] || { total_reviews: 0, avg_score: null, total_feedback: 0 };
+    return rows[0] || { total_reviews: 0, avg_score: 0, total_feedback: 0, reviews_due_soon: 0 };
   }
 };

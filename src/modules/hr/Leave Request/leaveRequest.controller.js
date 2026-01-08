@@ -6,7 +6,7 @@ const service = new LeaveRequestService();
 export default class LeaveRequestController {
   static async getAll(req, res, next) {
     try {
-      const companyId = req.auth && req.auth.companyID;
+      const companyId = req.auth.companyID;
       const opts = {
         employee_id: req.query.employee_id,
         status: req.query.status,
@@ -22,7 +22,7 @@ export default class LeaveRequestController {
 
   static async getById(req, res, next) {
     try {
-      const companyId = req.auth && req.auth.companyID;
+      const companyId = req.auth.companyID;
       const request = await service.getLeaveRequestById(companyId, req.params.id);
       if (!request) return notFound(res, 'Leave request not found');
       return ok(res, request);
@@ -33,7 +33,7 @@ export default class LeaveRequestController {
 
   static async getByEmployee(req, res, next) {
     try {
-      const companyId = req.auth && req.auth.companyID;
+      const companyId = req.auth.companyID;
       const requests = await service.getLeaveRequestsByEmployee(companyId, req.params.employeeId);
       return ok(res, requests);
     } catch (e) {
@@ -43,7 +43,7 @@ export default class LeaveRequestController {
 
   static async create(req, res, next) {
     try {
-      const companyId = req.auth && req.auth.companyID;
+      const companyId = req.auth.companyID;
       const payload = { ...req.body };
       const request = await service.createLeaveRequest(companyId, payload);
       return created(res, request);
@@ -54,7 +54,7 @@ export default class LeaveRequestController {
 
   static async update(req, res, next) {
     try {
-      const companyId = req.auth && req.auth.companyID;
+      const companyId = req.auth.companyID;
       const request = await service.updateLeaveRequest(companyId, req.params.id, req.body);
       if (!request) return notFound(res, 'Leave request not found');
       return ok(res, request);
@@ -65,7 +65,7 @@ export default class LeaveRequestController {
 
   static async delete(req, res, next) {
     try {
-      const companyId = req.auth && req.auth.companyID;
+      const companyId = req.auth.companyID;
       const request = await service.deleteLeaveRequest(companyId, req.params.id);
       if (!request) return notFound(res, 'Leave request not found');
       return noContent(res);
@@ -75,7 +75,7 @@ export default class LeaveRequestController {
   }
   static async approve(req, res, next) {
   try {
-    const companyId = req.auth && req.auth.companyID;
+    const companyId = req.auth.companyID;
     const request = await service.approveLeaveRequest(companyId, req.params.id, req.body.approver_comments);
     if (!request) return notFound(res, 'Leave request not found');
     return ok(res, request);
@@ -86,7 +86,7 @@ export default class LeaveRequestController {
 
     static async reject(req, res, next) {
     try {
-      const companyId = req.auth && req.auth.companyID;
+      const companyId = req.auth.companyID;
       const request = await service.rejectLeaveRequest(companyId, req.params.id, req.body.approver_comments);
         if (!request) return notFound(res, 'Leave request not found');
         return ok(res, request);
